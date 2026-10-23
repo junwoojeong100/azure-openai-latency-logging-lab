@@ -1,0 +1,8 @@
+__pycache__/
+*.pyc
+.DS_Store
+
+# 실습 중 현재 폴더에 생기는 임시 키 · 변수 파일
+id_lab
+id_lab.pub
+lablog.env

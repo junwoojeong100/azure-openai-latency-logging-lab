@@ -1,0 +1,9 @@
+[Unit]
+Description=Run AOAI latency probe every minute
+
+[Timer]
+OnCalendar=*-*-* *:*:00
+AccuracySec=1s
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,6 @@
+[Unit]
+Description=AOAI latency probe (1 shot)
+
+[Service]
+Type=oneshot
+ExecStart=/opt/aoai-probe/aoai_probe.sh

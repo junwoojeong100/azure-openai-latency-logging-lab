@@ -1,0 +1,300 @@
+// queries.kql — 슬라이드에 나오는 KQL 모음. "//## 이름 | 실행 위치" 줄로 구분합니다.
+//   workspace = Log Analytics 워크스페이스의 Logs 에서 실행 (App Insights 가 워크스페이스 기반일 때 App* 테이블 사용)
+//   테이블·컬럼명은 환경(진단 설정 방식·에이전트 설정)에 따라 다를 수 있어, 처음 한 번은 `| take 5` 로 컬럼을 확인하세요.
+
+//## aoai_requestresponse_check | workspace
+AzureDiagnostics
+| where TimeGenerated > ago(2h)
+| where ResourceProvider == "MICROSOFT.COGNITIVESERVICES"
+| where Category == "RequestResponse"
+| project TimeGenerated, OperationName, ResultSignature, DurationMs,
+          CorrelationId, CallerIPAddress, properties_s
+| order by TimeGenerated desc
+| take 20
+
+//## aoai_by_5min | workspace
+AzureDiagnostics
+| where TimeGenerated > ago(7d)
+| where ResourceProvider == "MICROSOFT.COGNITIVESERVICES"
+| where Category == "RequestResponse"
+| where OperationName contains "Completions"
+| summarize calls = count(), p95_ms = percentile(DurationMs, 95),
+            max_ms = max(DurationMs),
+            c429 = countif(ResultSignature == "429"),
+            c499 = countif(ResultSignature == "499"),
+            c5xx = countif(ResultSignature startswith "5")
+  by bin(TimeGenerated, 5m)
+| order by TimeGenerated asc
+
+//## aoai_minute_of_hour | workspace
+AzureDiagnostics
+| where TimeGenerated > ago(14d)
+| where ResourceProvider == "MICROSOFT.COGNITIVESERVICES"
+| where Category == "RequestResponse"
+| where OperationName contains "Completions"
+| extend minute_of_hour = datetime_part("minute", TimeGenerated)
+| summarize calls = count(), p95_ms = percentile(DurationMs, 95),
+            over_8s = countif(DurationMs > 8000),
+            c499 = countif(ResultSignature == "499")
+  by bin(minute_of_hour, 5)
+| order by minute_of_hour asc
+
+//## aoai_requestid_match | workspace
+// 앱 로그의 apim_request_id(응답 헤더 apim-request-id)가 AOAI 로그의 CorrelationId 와 같습니다 (실측 확인) — ID를 넣어 실행
+AzureDiagnostics
+| where TimeGenerated > ago(1d)
+| where Category == "RequestResponse"
+| where CorrelationId == "<apim_request_id>"
+| extend p = parse_json(properties_s)
+| project TimeGenerated, CorrelationId,
+          DurationMs, ResultSignature,
+          prompt_tokens = p.promptTokens,
+          completion_tokens = p.completionTokens
+
+//## app_calls_by_5min | workspace
+AppTraces
+| where TimeGenerated > ago(7d) and Message has "aoai_call"
+| extend r = parse_json(Message)
+| summarize calls = count(), p95_ms = percentile(todouble(r.total_ms), 95),
+            timeouts = countif(tostring(r.outcome) == "client_timeout"),
+            retries = countif(toint(r.attempt) > 1)
+  by bin(TimeGenerated, 5m), deployment = tostring(r.deployment)
+| order by TimeGenerated asc
+
+//## app_vs_aoai_by_minute | workspace
+let app = AppTraces
+    | where TimeGenerated > ago(3d) and Message has "aoai_call"
+    | extend r = parse_json(Message)
+    | summarize app_calls = count(),
+                app_p95_ms = percentile(todouble(r.total_ms), 95),
+                timeouts = countif(tostring(r.outcome) == "client_timeout")
+      by t = bin(TimeGenerated, 1m);
+let aoai = AzureDiagnostics
+    | where TimeGenerated > ago(3d)
+    | where ResourceProvider == "MICROSOFT.COGNITIVESERVICES"
+    | where Category == "RequestResponse"
+    | summarize aoai_calls = count(),
+                aoai_p95_ms = percentile(DurationMs, 95),
+                c499 = countif(ResultSignature == "499")
+      by t = bin(TimeGenerated, 1m);
+app
+| join kind=fullouter aoai on t
+| project t = coalesce(t, t1), app_calls, app_p95_ms, timeouts,
+          aoai_calls, aoai_p95_ms, c499
+| order by t asc
+
+//## app_after_idle | workspace
+// 직전 호출 로그 이후 경과 시간(대략치: 프로세스가 여러 개면 실제 유휴는 더 길 수 있음)별 지연·timeout
+AppTraces
+| where TimeGenerated > ago(7d) and Message has "aoai_call"
+| extend r = parse_json(Message)
+| extend total_ms = todouble(r.total_ms), outcome = tostring(r.outcome)
+| sort by TimeGenerated asc
+| extend idle_s = datetime_diff("second",
+          TimeGenerated - total_ms * 1ms, prev(TimeGenerated))
+| extend idle = case(idle_s < 60, "a_lt_1m", idle_s < 300, "b_1_5m",
+                     "c_gt_5m")
+| summarize calls = count(), p95_ms = percentile(total_ms, 95),
+            timeouts = countif(outcome == "client_timeout")
+  by idle
+| order by idle asc
+
+//## app_by_minute_of_hour | workspace
+AppTraces
+| where TimeGenerated > ago(7d) and Message has "aoai_call"
+| extend r = parse_json(Message)
+| summarize calls = count(), max_inflight = max(toint(r.inflight)),
+            p95_ms = percentile(todouble(r.total_ms), 95),
+            timeouts = countif(tostring(r.outcome) == "client_timeout")
+  by minute_of_hour = datetime_part("minute", TimeGenerated)
+| order by minute_of_hour asc
+
+//## app_dependencies_aoai | workspace
+AppDependencies
+| where TimeGenerated > ago(1d)
+| where Target has "openai.azure.com"
+| summarize calls = count(), failed = countif(Success == false),
+            p95_ms = percentile(DurationMs, 95), max_ms = max(DurationMs)
+  by bin(TimeGenerated, 5m), ResultCode
+| order by TimeGenerated asc
+
+//## app_dep_vs_aoai_by_minute | workspace
+// 앱(Application Insights)이 본 시간 vs AOAI(진단 로그)가 본 시간 — 1분 단위, 8초 이상 느린 분만
+let app = AppDependencies
+    | where TimeGenerated > ago(3d) and Target has "openai.azure.com"
+    | summarize app_calls = sum(ItemCount),
+                app_failed = sumif(ItemCount, Success == false),
+                app_p95_ms = percentile(DurationMs, 95)
+      by t = bin(TimeGenerated, 1m);
+let aoai = AzureDiagnostics
+    | where TimeGenerated > ago(3d)
+    | where ResourceProvider == "MICROSOFT.COGNITIVESERVICES"
+    | where Category == "RequestResponse"
+    | summarize aoai_calls = count(),
+                aoai_p95_ms = percentile(DurationMs, 95),
+                c499 = countif(ResultSignature == "499")
+      by t = bin(TimeGenerated, 1m);
+app
+| join kind=fullouter aoai on t
+| project t = coalesce(t, t1), app_calls, app_failed, app_p95_ms,
+          aoai_calls, aoai_p95_ms, c499
+| where app_p95_ms > 8000 or aoai_p95_ms > 8000
+| order by t asc
+
+//## app_vs_aoai_by_request | workspace
+// 요청 단위 대조: 앱이 잰 시간 − AOAI 가 잰 시간 = 앱↔AOAI 사이(네트워크·클라이언트)에서 쓴 시간
+let app = AppTraces
+    | where TimeGenerated > ago(1d) and Message has "aoai_call"
+    | extend r = parse_json(Message)
+    | project t = TimeGenerated, apim = tostring(r.apim_request_id),
+              outcome = tostring(r.outcome), app_ms = toint(r.total_ms);
+AzureDiagnostics
+| where TimeGenerated > ago(1d) and Category == "RequestResponse"
+| project CorrelationId, status = ResultSignature, aoai_ms = DurationMs
+| join kind=inner app on $left.CorrelationId == $right.apim
+| project t, outcome, status, app_ms, aoai_ms, gap_ms = app_ms - aoai_ms
+| order by gap_ms desc
+| take 50
+
+//## aoai_tokens_by_5min | workspace
+// AOAI 로그만으로 보는 출력 토큰당 시간 — 토큰당 시간이 일정한데 총 시간만 늘면 출력 길이 때문
+AzureDiagnostics
+| where TimeGenerated > ago(7d)
+| where ResourceProvider == "MICROSOFT.COGNITIVESERVICES"
+| where Category == "RequestResponse"
+| extend p = parse_json(properties_s)
+| summarize calls = count(), p95_ms = percentile(DurationMs, 95),
+            out_tokens = sum(toint(p.completionTokens)),
+            ms_per_out_token = sum(DurationMs) / sum(toint(p.completionTokens))
+  by bin(TimeGenerated, 5m)
+| order by TimeGenerated asc
+
+//## probe_by_5min | workspace
+Syslog
+| where TimeGenerated > ago(7d) and ProcessName == "aoai-probe"
+| extend p = parse_json(SyslogMessage)
+| summarize runs = count(), p95_ms = percentile(toint(p.total_ms), 95),
+            max_tcp_ms = max(toint(p.tcp_ms)),
+            max_wait_ms = max(toint(p.wait_ms)),
+            fails = countif(toint(p.rc) != 0)
+  by bin(TimeGenerated, 5m), role = tostring(p.role),
+     target = tostring(p.target)
+| order by TimeGenerated asc
+
+//## vm_cpu_mem | workspace
+Perf
+| where TimeGenerated > ago(1d)
+| where Computer has "contoso-vm-prod-agent-rhel"
+| where (ObjectName == "Processor" and InstanceName == "_Total"
+         and CounterName in ("% Processor Time", "% IO Wait Time"))
+     or (ObjectName == "Memory" and CounterName == "% Used Memory")
+| summarize max_v = max(CounterValue)
+  by bin(TimeGenerated, 1m), ObjectName, CounterName
+| order by TimeGenerated asc
+
+//## cron_at_hh00_hh30 | workspace
+Syslog
+| where TimeGenerated > ago(7d) and Facility == "cron"
+| where SyslogMessage has "CMD"
+| extend minute_of_hour = datetime_part("minute", TimeGenerated)
+| where minute_of_hour in (0, 1, 30, 31)
+| summarize runs = count()
+  by ProcessName, cmd = substring(SyslogMessage, 0, 100)
+| order by runs desc
+
+//## fw_openai_connections | workspace
+AZFWApplicationRule
+| where TimeGenerated > ago(1d)
+| where Fqdn endswith ".openai.azure.com"
+| summarize conns = count(), src_ports = dcount(SourcePort)
+  by bin(TimeGenerated, 1m), SourceIp
+| order by TimeGenerated asc
+
+//## fw_dns_duration | workspace
+AZFWDnsQuery
+| where TimeGenerated > ago(1d)
+| where QueryName has "openai.azure.com"
+| summarize n_queries = count(),
+            p95_s = percentile(todouble(RequestDurationSecs), 95),
+            max_s = max(todouble(RequestDurationSecs))
+  by bin(TimeGenerated, 1m), ResponseCode
+| order by TimeGenerated asc
+
+//## fw_snat_utilization | workspace
+AzureMetrics
+| where TimeGenerated > ago(1d) and MetricName == "SNATPortUtilization"
+| summarize max_pct = max(Maximum) by bin(TimeGenerated, 1m), Resource
+| order by TimeGenerated asc
+
+//## cm_aoai_rtt | workspace
+NWConnectionMonitorTestResult
+| where TimeGenerated > ago(1d)
+| where DestinationAddress endswith ".openai.azure.com"
+| summarize avg_rtt_ms = avg(AvgRoundTripTimeMs),
+            max_rtt_ms = max(MaxRoundTripTimeMs),
+            failed = sum(ChecksFailed), total = sum(ChecksTotal)
+  by bin(TimeGenerated, 1m), TestConfigurationName
+| order by TimeGenerated asc
+
+//## avail_tests | workspace
+AppAvailabilityResults
+| where TimeGenerated > ago(7d)
+| summarize runs = count(), fails = countif(Success == false),
+            avg_ms = avg(DurationMs), max_ms = max(DurationMs)
+  by bin(TimeGenerated, 5m), Name, Location
+| order by TimeGenerated asc
+
+//## alert_client_timeout | workspace
+AppTraces
+| where Message has "aoai_call" and Message has "client_timeout"
+
+//## alert_probe_slow | workspace
+Syslog
+| where ProcessName == "aoai-probe"
+| extend p = parse_json(SyslogMessage)
+| where toint(p.rc) != 0 or toint(p.total_ms) >= 8000
+
+//## ama_heartbeat | workspace
+Heartbeat
+| where TimeGenerated > ago(30m) and Computer has "contoso-vm-prod-agent-rhel"
+| summarize last_seen = max(TimeGenerated), beats = count()
+  by Computer, OSType, Version
+
+//## ama_perf_counters | workspace
+Perf
+| where TimeGenerated > ago(30m) and Computer has "contoso-vm-prod-agent-rhel"
+| summarize samples = count(), last_seen = max(TimeGenerated)
+  by ObjectName, CounterName
+
+//## ama_syslog_sources | workspace
+Syslog
+| where TimeGenerated > ago(1h)
+| where Computer has "contoso-vm-prod-agent-rhel"
+| summarize n = count(),
+            last_seen = max(TimeGenerated)
+  by Facility, ProcessName
+| order by n desc
+
+//## snapshot_summary | workspace
+Syslog
+| where TimeGenerated > ago(7d) and ProcessName == "aoai-snap"
+| extend s = parse_json(SyslogMessage)
+| project TimeGenerated, file = tostring(s.file), runq = toint(s.runq),
+          iowait_pct = toint(s.iowait_pct), est443 = toint(s.est443),
+          tcp_retrans_total = tolong(s.tcp_retrans_total)
+| order by TimeGenerated desc
+
+//## usage_by_table | workspace
+Usage
+| where TimeGenerated > ago(7d) and IsBillable == true
+| summarize gb = sum(Quantity) / 1024
+  by DataType, bin(TimeGenerated, 1d)
+| order by TimeGenerated asc, gb desc
+
+//## billed_by_table | workspace
+// Usage 테이블은 새 워크스페이스에서 수 시간 늦게 채워집니다 — 바로 확인하려면 _BilledSize 로 계산
+union withsource=TblName *
+| where TimeGenerated > ago(1d)
+| summarize MB = sum(_BilledSize) / 1048576
+  by TblName
+| order by MB desc

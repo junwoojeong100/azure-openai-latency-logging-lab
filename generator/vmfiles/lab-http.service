@@ -1,0 +1,10 @@
+[Unit]
+Description=lab local app endpoint (stand-in for report-agent port 11202)
+
+[Service]
+WorkingDirectory=/opt/lab-www
+ExecStart=/usr/bin/python3 -m http.server 11202 --bind 127.0.0.1
+Restart=always
+
+[Install]
+WantedBy=multi-user.target

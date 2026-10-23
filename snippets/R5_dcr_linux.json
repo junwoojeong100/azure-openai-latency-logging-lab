@@ -1,0 +1,22 @@
+{ "properties": {
+  "dataSources": {
+    "performanceCounters": [ { "name": "perf60s", "streams": ["Microsoft-Perf"],
+      "samplingFrequencyInSeconds": 60,
+      "counterSpecifiers": [
+        "Processor(*)\\% Processor Time", "Processor(*)\\% IO Wait Time",
+        "Memory(*)\\% Used Memory", "Memory(*)\\Available MBytes Memory",
+        "Memory(*)\\% Used Swap Space", "Logical Disk(*)\\Disk Transfers/sec",
+        "Logical Disk(*)\\% Free Space", "Network(*)\\Total Rx Errors",
+        "Network(*)\\Total Tx Errors", "Network(*)\\Total Bytes Received",
+        "Network(*)\\Total Bytes Transmitted", "System(*)\\Load1" ] } ],
+    "syslog": [ { "name": "cron-probe", "streams": ["Microsoft-Syslog"],
+      "facilityNames": ["cron", "local5"],
+      "logLevels": ["Info", "Notice", "Warning", "Error", "Critical",
+                    "Alert", "Emergency"] } ] },
+  "destinations": { "logAnalytics": [
+    { "workspaceResourceId": "<LAW_ID>", "name": "law" } ] },
+  "dataFlows": [
+    { "streams": ["Microsoft-Perf"], "destinations": ["law"],
+      "transformKql": "source", "outputStream": "Microsoft-Perf" },
+    { "streams": ["Microsoft-Syslog"], "destinations": ["law"],
+      "transformKql": "source", "outputStream": "Microsoft-Syslog" } ] } }

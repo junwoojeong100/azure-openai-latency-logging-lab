@@ -1,0 +1,930 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Azure OpenAI 응답 지연 — 로그 수집 실습 가이드</title>
+<script>
+  (() => {
+    const param = new URLSearchParams(window.location.search).get("scoutTheme");
+    const theme =
+      param || (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+    document.documentElement.setAttribute("data-theme", theme);
+  })();
+</script>
+<style>
+:root {
+  color-scheme: light;
+  --cp-bg: #f7f4ef;
+  --cp-bg-elevated: #fcfbf8;
+  --cp-surface: #ffffff;
+  --cp-surface-soft: #f5f5f5;
+  --cp-border: #dedede;
+  --cp-border-strong: #919191;
+  --cp-text: #242424;
+  --cp-text-muted: #5c5c5c;
+  --cp-text-soft: #6f6f6f;
+  --cp-accent: #b11f4b;
+  --cp-accent-hover: #9a1a41;
+  --cp-accent-soft: rgba(177, 31, 75, 0.08);
+  --cp-accent-fg: #ffffff;
+  --cp-success: #16a34a;
+  --cp-danger: #dc2626;
+  --cp-warning: #f59e0b;
+  --cp-link: #0078d4;
+  --cp-shadow: 0 18px 48px rgba(0, 0, 0, 0.12);
+  --cp-overlay: rgba(255, 255, 255, 0.8);
+  --cp-panel: rgba(255, 255, 255, 0.86);
+  --cp-panel-strong: rgba(255, 255, 255, 0.96);
+  --cp-sheen: rgba(255, 255, 255, 0.55);
+  --cp-highlight: rgba(177, 31, 75, 0.12);
+}
+html[data-theme="dark"] {
+  color-scheme: dark;
+  --cp-bg: #3d3b3a;
+  --cp-bg-elevated: #343231;
+  --cp-surface: #292929;
+  --cp-surface-soft: #2e2e2e;
+  --cp-border: #474747;
+  --cp-border-strong: #5f5f5f;
+  --cp-text: #dedede;
+  --cp-text-muted: #919191;
+  --cp-text-soft: #b0b0b0;
+  --cp-accent: #fd8ea1;
+  --cp-accent-hover: #fb7b91;
+  --cp-accent-soft: rgba(253, 142, 161, 0.14);
+  --cp-accent-fg: #1a1a1a;
+  --cp-success: #4ade80;
+  --cp-danger: #f87171;
+  --cp-warning: #fbbf24;
+  --cp-link: #4da6ff;
+  --cp-shadow: 0 18px 48px rgba(0, 0, 0, 0.32);
+  --cp-overlay: rgba(41, 41, 41, 0.88);
+  --cp-panel: rgba(41, 41, 41, 0.72);
+  --cp-panel-strong: rgba(41, 41, 41, 0.96);
+  --cp-sheen: rgba(255, 255, 255, 0.04);
+  --cp-highlight: rgba(253, 142, 161, 0.12);
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; scroll-padding-top: 16px; }
+body {
+  margin: 0; background: var(--cp-bg); color: var(--cp-text);
+  font-family: "Segoe UI", Aptos, Calibri, -apple-system, BlinkMacSystemFont, sans-serif;
+  font-size: 15px; line-height: 1.65;
+}
+a { color: var(--cp-link); }
+code, pre, kbd { font-family: Consolas, "Courier New", Courier, monospace; }
+:not(pre) > code {
+  background: var(--cp-surface-soft); border: 1px solid var(--cp-border); border-radius: 6px;
+  padding: 1px 6px; font-size: 0.9em; word-break: break-word;
+}
+.hero { max-width: 1240px; margin: 0 auto; padding: 36px 28px 8px; }
+.eyebrow { color: var(--cp-accent); font-weight: 700; letter-spacing: 0.08em; font-size: 12px; text-transform: uppercase; }
+.hero h1 { margin: 6px 0 10px; font-size: 32px; line-height: 1.25; letter-spacing: -0.01em; }
+.hero p.lead { margin: 0 0 16px; color: var(--cp-text-muted); font-size: 16px; max-width: 860px; }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 8px; }
+.chip {
+  display: inline-flex; align-items: center; gap: 6px; padding: 4px 12px; border-radius: 999px;
+  background: var(--cp-surface); border: 1px solid var(--cp-border); font-size: 13px; color: var(--cp-text-muted);
+}
+.chip b { color: var(--cp-text); font-weight: 600; }
+.layout { max-width: 1240px; margin: 0 auto; padding: 8px 28px 56px; display: grid; grid-template-columns: 250px minmax(0, 1fr); gap: 32px; }
+nav.toc { position: sticky; top: 16px; align-self: start; max-height: calc(100vh - 32px); overflow: auto; padding: 14px 4px 14px 0; font-size: 13.5px; }
+nav.toc .grp { margin: 14px 0 4px; font-size: 11.5px; font-weight: 700; letter-spacing: 0.06em; color: var(--cp-text-soft); text-transform: uppercase; }
+nav.toc a { display: block; padding: 4px 10px; border-left: 2px solid var(--cp-border); color: var(--cp-text-muted); text-decoration: none; }
+nav.toc a:hover { color: var(--cp-text); border-left-color: var(--cp-border-strong); }
+nav.toc a.on { color: var(--cp-accent); border-left-color: var(--cp-accent); background: var(--cp-accent-soft); font-weight: 600; }
+main { min-width: 0; }
+main section { margin: 0 0 44px; }
+main h2 {
+  font-size: 22px; margin: 0 0 14px; padding-bottom: 8px; border-bottom: 2px solid var(--cp-accent);
+  display: flex; align-items: baseline; gap: 10px;
+}
+main h2 small { font-size: 13px; font-weight: 500; color: var(--cp-text-soft); }
+.step {
+  background: var(--cp-surface); border: 1px solid var(--cp-border); border-radius: 16px; padding: 18px 20px 14px; margin: 0 0 18px;
+  box-shadow: 0 0 2px rgba(0,0,0,0.12), 0 1px 2px rgba(0,0,0,0.14);
+}
+.step > h3 { margin: 0 0 4px; font-size: 17.5px; display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.badge {
+  display: inline-block; font-size: 11.5px; font-weight: 700; letter-spacing: 0.04em; padding: 2px 9px; border-radius: 999px;
+  color: var(--cp-accent); background: var(--cp-accent-soft); border: 1px solid var(--cp-highlight);
+}
+.badge.opt { color: var(--cp-text-muted); background: var(--cp-surface-soft); border-color: var(--cp-border); }
+.meta { color: var(--cp-text-soft); font-size: 13px; margin: 0 0 10px; }
+.step p { margin: 8px 0; }
+.step ul, .step ol { margin: 8px 0; padding-left: 22px; }
+.step li { margin: 3px 0; }
+.codewrap { position: relative; margin: 10px 0; }
+.codewrap .cap { font-size: 12.5px; font-weight: 600; color: var(--cp-text-muted); margin: 0 0 4px; display: flex; justify-content: space-between; }
+pre.code {
+  margin: 0; padding: 12px 14px; overflow: auto; background: var(--cp-surface-soft); border: 1px solid var(--cp-border);
+  border-radius: 10px; font-size: 12.8px; line-height: 1.55; tab-size: 2; max-height: 560px;
+}
+pre.code code { white-space: pre; }
+.c { color: var(--cp-text-soft); }
+button.copy {
+  position: absolute; top: 26px; right: 8px; font: inherit; font-size: 12px; padding: 2px 10px; border-radius: 8px; cursor: pointer;
+  color: var(--cp-accent); background: var(--cp-surface); border: 1px solid var(--cp-highlight); opacity: 0.92;
+}
+.codewrap.nocap button.copy { top: 8px; }
+button.copy:hover { background: var(--cp-accent-soft); }
+button.copy.ok { color: var(--cp-accent-fg); background: var(--cp-success); border-color: var(--cp-success); }
+details { margin: 10px 0; border: 1px solid var(--cp-border); border-radius: 10px; background: var(--cp-bg-elevated); }
+details > summary { cursor: pointer; padding: 8px 14px; font-weight: 600; font-size: 14px; color: var(--cp-text-muted); }
+details[open] > summary { border-bottom: 1px solid var(--cp-border); color: var(--cp-text); }
+details > .inner { padding: 2px 14px 10px; }
+.expect, .callout {
+  margin: 10px 0; padding: 9px 14px; border-radius: 10px; border: 1px solid var(--cp-border); background: var(--cp-bg-elevated);
+  border-left: 4px solid var(--cp-success); font-size: 14px;
+}
+.expect > .lbl, .callout > .lbl { font-weight: 700; font-size: 12.5px; margin-bottom: 4px; color: var(--cp-success); letter-spacing: 0.02em; }
+.expect pre { margin: 6px 0 2px; padding: 8px 10px; background: var(--cp-surface); border: 1px solid var(--cp-border); border-radius: 8px; font-size: 12.3px; overflow: auto; line-height: 1.5; }
+.callout { border-left-color: var(--cp-accent); }
+.callout > .lbl { color: var(--cp-accent); }
+.callout.warn { border-left-color: var(--cp-warning); }
+.callout.warn > .lbl { color: var(--cp-warning); }
+.callout.danger { border-left-color: var(--cp-danger); }
+.callout.danger > .lbl { color: var(--cp-danger); }
+table { border-collapse: collapse; width: 100%; margin: 10px 0; font-size: 14px; background: var(--cp-surface); border: 1px solid var(--cp-border); border-radius: 10px; overflow: hidden; }
+th, td { text-align: left; padding: 8px 12px; border-bottom: 1px solid var(--cp-border); vertical-align: top; }
+th { background: var(--cp-surface-soft); font-size: 12.5px; color: var(--cp-text-muted); letter-spacing: 0.02em; }
+tr:last-child td { border-bottom: 0; }
+table.nw td:first-child { white-space: nowrap; }
+a.chip { text-decoration: none; }
+a.chip:hover { border-color: var(--cp-accent); color: var(--cp-accent); }
+th.res { white-space: nowrap; }
+td.ok { color: var(--cp-success); font-weight: 700; white-space: nowrap; }
+td.part { color: var(--cp-warning); font-weight: 700; white-space: nowrap; }
+td.no { color: var(--cp-danger); font-weight: 700; white-space: nowrap; }
+.diagram { background: var(--cp-surface); border: 1px solid var(--cp-border); border-radius: 16px; padding: 10px; margin: 12px 0; }
+.diagram svg { width: 100%; height: auto; display: block; }
+.diagram .box { fill: var(--cp-surface-soft); stroke: var(--cp-border-strong); stroke-width: 1.2; }
+.diagram .boxa { fill: var(--cp-accent-soft); stroke: var(--cp-accent); stroke-width: 1.4; }
+.diagram .lbl { fill: var(--cp-text); font-size: 13px; font-family: "Segoe UI", Aptos, Calibri, sans-serif; }
+.diagram .sub { fill: var(--cp-text-muted); font-size: 11px; font-family: "Segoe UI", Aptos, Calibri, sans-serif; }
+.diagram .ttl { fill: var(--cp-accent); font-size: 12px; font-weight: 700; font-family: "Segoe UI", Aptos, Calibri, sans-serif; letter-spacing: 0.04em; }
+.diagram .arr { stroke: var(--cp-text-soft); stroke-width: 1.4; fill: none; }
+.diagram .arrh { fill: var(--cp-text-soft); }
+footer.foot { max-width: 1240px; margin: 0 auto; padding: 0 28px 40px; color: var(--cp-text-soft); font-size: 13px; }
+@media (max-width: 1000px) {
+  .layout { grid-template-columns: minmax(0, 1fr); gap: 12px; }
+  .hero, .layout, footer.foot { padding-left: 16px; padding-right: 16px; }
+  .hero h1 { font-size: 24px; }
+  table { display: block; overflow-x: auto; }
+  nav.toc { position: static; max-height: none; border-bottom: 1px solid var(--cp-border); padding-bottom: 12px; }
+}
+@media print {
+  nav.toc, button.copy { display: none !important; }
+  .layout { display: block; padding: 0 12px; }
+  .step { break-inside: avoid; box-shadow: none; }
+  pre.code { max-height: none; overflow: visible; white-space: pre-wrap; }
+  details { display: block; }
+}
+</style>
+</head>
+<body>
+<header class="hero">
+<div class="eyebrow">Azure OpenAI · 응답 지연 · 로그 수집</div>
+<h1>로그 수집 실습 가이드 — 리소스 그룹부터 새로 만들어 끝까지</h1>
+<p class="lead">앱 · VM · Azure OpenAI 세 구간에서 요청 단위 로그를 모으는 22장 가이드(R1~R8)를, 새 리소스 그룹에 실습 환경을 만들어 직접 적용하고 결과를 확인합니다. 모든 코드 블록은 복사해서 그대로 실행할 수 있습니다.</p>
+<div class="chips">
+<span class="chip"><b>검증</b> 2026-10-23 · Korea Central · RHEL 9.8 · gpt-4.1-mini</span>
+<span class="chip"><b>소요</b> 약 2~3시간 (로그 대기 포함)</span>
+<span class="chip"><b>비용</b> 약 $2 이내 (예상)</span>
+<span class="chip"><b>형식</b> 한 페이지 · bash · 복사 버튼</span>
+<a class="chip" href="#x1"><b>검증 기록</b> 보기 →</a>
+</div>
+</header>
+<div class="layout">
+<nav class="toc" aria-label="목차"><div class="grp">시작하기 전에</div><a href="#start">개요 · 구성 · 준비물</a><div class="grp">A · 실습 환경 만들기</div><a href="#a1">A1 변수 · 도우미 함수</a><a href="#a2">A2 RG · 워크스페이스 · 네트워크</a><a href="#a3">A3 Azure OpenAI 배포</a><a href="#a4">A4 RHEL VM · 관리 ID</a><a href="#a5">A5 VM 준비</a><div class="grp">B · 로그 켜기</div><a href="#b1">B1 · R1 AOAI 진단 설정</a><a href="#b2">B2 · R5 에이전트 · 수집 규칙</a><a href="#b3">B3 · R3·R4 데모 앱</a><a href="#b4">B4 · R7 합성 probe</a><a href="#b5">B5 · R2 메트릭</a><a href="#b6">B6 · R8 알림</a><a href="#b7">B7 · R6 네트워크</a><div class="grp">C · 확인과 분석</div><a href="#c1">C1 데이터 도착 · 지연</a><a href="#c2">C2 요청 단위 대조</a><a href="#c3">C3 시간 패턴</a><a href="#c4">C4 VM · probe · cron</a><a href="#c5">C5 체크리스트 · 읽는 법</a><div class="grp">D · 정리</div><a href="#d1">D 삭제 · 중지</a><div class="grp">부록</div><a href="#x1">A 확인한 사실</a><a href="#x2">B 가이드 수정 내역</a><a href="#x3">C 문제 해결</a><a href="#x4">D 운영 적용 시 차이</a></nav>
+<main><section id="start"><h2>시작하기 전에<small>목표 · 구성 · 준비물</small></h2><p>애플리케이션 · VM · Azure OpenAI(AOAI) 세 구간에서 <b>요청 단위 로그</b>를 모으는 방법(22장 가이드의 R1~R8)을, <b>새 리소스 그룹에 실습 환경을 처음부터 만들면서</b> 직접 해 보고 결과까지 확인합니다. 모든 명령·코드·쿼리는 실제 Azure(Korea Central, RHEL 9.8, gpt-4.1-mini)에서 그대로 실행해 검증한 것입니다.</p><div class="diagram"><svg viewBox="0 0 960 330" role="img" aria-label="실습 환경 구성도: VM의 앱·probe·에이전트와 Azure OpenAI, Application Insights, Connection Monitor가 하나의 Log Analytics 워크스페이스로 로그를 보냅니다">
+<defs><marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="arrh"/></marker></defs>
+<rect class="box" x="16" y="28" width="340" height="276" rx="14"/>
+<text class="ttl" x="32" y="50">VM · RHEL 9 (인바운드 포트 없음)</text>
+<rect class="boxa" x="32" y="62" width="308" height="66" rx="10"/>
+<text class="lbl" x="46" y="86">데모 앱 report-agent</text><text class="sub" x="46" y="106">R3 호출 로그(JSON) + R4 OpenTelemetry</text>
+<rect class="box" x="32" y="140" width="308" height="52" rx="10"/>
+<text class="lbl" x="46" y="162">합성 probe (1분 타이머)</text><text class="sub" x="46" y="180">R7 · syslog local5 + 지연 순간 스냅샷</text>
+<rect class="box" x="32" y="204" width="308" height="52" rx="10"/>
+<text class="lbl" x="46" y="226">Azure Monitor Agent</text><text class="sub" x="46" y="244">R5 · 성능 카운터 12개 + cron·local5 syslog</text>
+<rect class="boxa" x="470" y="28" width="262" height="86" rx="12"/>
+<text class="ttl" x="486" y="50">AZURE OPENAI</text><text class="lbl" x="486" y="72">gpt-4.1-mini (Global Standard)</text><text class="sub" x="486" y="92">R1 진단 설정 · R2 메트릭</text>
+<rect class="box" x="470" y="130" width="262" height="62" rx="12"/>
+<text class="lbl" x="486" y="156">Application Insights</text><text class="sub" x="486" y="176">R4 · AppDependencies · AppTraces</text>
+<rect class="box" x="470" y="208" width="262" height="62" rx="12"/>
+<text class="lbl" x="486" y="234">Connection Monitor</text><text class="sub" x="486" y="254">R6 · VM → AOAI:443 · 30초 간격</text>
+<rect class="boxa" x="800" y="28" width="148" height="276" rx="14"/>
+<text class="ttl" x="814" y="52">LOG ANALYTICS</text>
+<text class="sub" x="814" y="82">AzureDiagnostics</text><text class="sub" x="814" y="102">AzureMetrics</text><text class="sub" x="814" y="122">AppDependencies</text>
+<text class="sub" x="814" y="142">AppTraces</text><text class="sub" x="814" y="162">Perf</text><text class="sub" x="814" y="182">Syslog</text>
+<text class="sub" x="814" y="202">Heartbeat</text><text class="sub" x="814" y="222">NWConnectionMonitor…</text>
+<text class="lbl" x="814" y="274">한 곳에서 시간으로</text><text class="lbl" x="814" y="292">맞춰 봅니다</text>
+<path class="arr" d="M340,92 L470,64" marker-end="url(#ah)"/>
+<path class="arr" d="M340,160 L470,100" marker-end="url(#ah)"/>
+<path class="arr" d="M340,112 L470,158" marker-end="url(#ah)"/>
+<path class="arr" d="M340,236 L420,236 L420,300 L874,300 L874,304" marker-end="url(#ah)"/>
+<path class="arr" d="M732,70 L800,70" marker-end="url(#ah)"/>
+<path class="arr" d="M732,162 L800,162" marker-end="url(#ah)"/>
+<path class="arr" d="M732,240 L800,240" marker-end="url(#ah)"/>
+<text class="sub" x="372" y="62">호출</text>
+</svg></div><div class="chips"><span class="chip"><b>A</b> 환경 만들기 · 약 15분</span><span class="chip">→</span><span class="chip"><b>B</b> 로그 켜기 · 약 15분</span><span class="chip">→</span><span class="chip"><b>⏱</b> 로그 대기 약 20분 (그동안 B 진행)</span><span class="chip">→</span><span class="chip"><b>C</b> 확인·분석 · 약 10분</span><span class="chip">→</span><span class="chip"><b>D</b> 정리 · 약 5분</span></div><table class="nw"><thead><tr><th>항목</th><th>요구 사항</th><th>비고</th></tr></thead><tbody>
+<tr><td>Azure CLI</td><td>2.60 이상 (이 가이드는 2.86 으로 검증)</td><td><code>az version</code></td></tr>
+<tr><td>셸</td><td>bash (macOS · Linux · WSL · Azure Cloud Shell)</td><td>Cloud Shell 이면 설치가 필요 없습니다</td></tr>
+<tr><td>구독 권한</td><td>실습용 구독의 Owner (또는 Contributor + 역할 할당 권한)</td><td>관리 ID 에 AOAI 호출 역할을 부여합니다</td></tr>
+<tr><td>AOAI 쿼터</td><td>koreacentral · Global Standard · gpt-4.1-mini 20K TPM 이상</td><td>아래 확인 명령</td></tr>
+<tr><td>비용(예상)</td><td>3시간 기준 약 $2 이내 — VM(B2s·RHEL) 약 $0.1/시간 + AOAI 토큰 소액, Log Analytics 는 시간당 약 1MB(월 5GB 무료 범위)</td><td>Azure Firewall(선택)은 시간당 과금 — 쓰면 바로 삭제</td></tr>
+</tbody></table><div class="codewrap"><div class="cap"><span>쿼터 확인 (limit − used 가 20 이상이면 됩니다 — 단위: 1K TPM)</span><span></span></div><button class="copy" type="button">복사</button><pre class="code"><code>az cognitiveservices usage list -l koreacentral --query "[?name.value=='OpenAI.GlobalStandard.gpt4.1-mini'].{used:currentValue,limit:limit}" -o table</code></pre></div><div class="expect"><div class="lbl">예상 결과</div><pre>Used    Limit
+------  -------
+0.0     5000.0</pre></div><div class="callout warn"><div class="lbl">안전 수칙</div><ul><li><b>실습용 구독</b>에서 실행하세요. 마지막 단계(D)에서 리소스 그룹을 통째로 삭제합니다.</li><li>VM 에는 <b>인바운드 포트가 없습니다</b>(NSG 규칙 없음). 모든 VM 작업은 <code>az vm run-command</code> 로 수행하므로 SSH 가 필요 없습니다.</li><li>AOAI 키는 VM 의 <code>/etc/report-agent/app.env</code>(권한 600)에만 저장합니다. 운영에서는 키 대신 관리 ID 를 쓰세요(probe 는 이미 관리 ID 를 사용).</li><li>수집하는 것은 시간·상태·토큰 수 같은 메타데이터뿐이며 프롬프트·응답 본문은 기록하지 않습니다.</li></ul></div></section><section id="a"><h2>A · 실습 환경 만들기<small>리소스 그룹부터 VM 까지 약 15분</small></h2><div class="step" id="a1"><h3><span class="badge">A1</span><span>구독 선택 · 변수 · 도우미 함수</span></h3><p class="meta">소요 약 2분</p><p>실습용 구독을 선택하고, 이후 모든 단계에서 쓰는 변수를 정합니다. 변수 이름은 22장 가이드의 스니펫과 같아서(<code>RG</code> · <code>AOAI</code> · <code>LAW</code> · <code>VM</code> …) 가이드의 명령을 그대로 붙여 넣을 수 있습니다.</p><div class="codewrap"><div class="cap"><span>① 구독과 확장 설치</span><span></span></div><button class="copy" type="button">복사</button><pre class="code" data-run="A1"><code>az login                                        # 이미 로그인되어 있으면 생략 (Cloud Shell 은 불필요)
+export SUB="&lt;구독 ID&gt;"                          # ← 실습용 구독 ID 로 바꿉니다 (az account list -o table)
+az account set -s "$SUB"
+for e in application-insights log-analytics scheduled-query monitor-control-service; do az extension add -n $e -y 2&gt;/dev/null; done
+for p in Microsoft.CognitiveServices Microsoft.Insights Microsoft.OperationalInsights Microsoft.Compute Microsoft.Network Microsoft.Storage Microsoft.AlertsManagement; do az provider register -n $p &gt;/dev/null; done</code></pre></div><div class="codewrap"><div class="cap"><span>② 변수 · 파일 저장 · 도우미 함수 (vmrun, kq)</span><span></span></div><button class="copy" type="button">복사</button><pre class="code" data-run="A1"><code>export LOC=koreacentral
+export SFX=$(LC_ALL=C tr -dc 'a-z0-9' &lt;/dev/urandom | head -c5)      # 이름 충돌을 피하는 5자리 접미사
+export RG=rg-lablog-$SFX LAW_NAME=law-lablog-$SFX APPI=appi-lablog-$SFX AOAI=oai-lablog-$SFX ST=stlablog$SFX
+export DEP=gpt41mini VNET=vnet-lablog SNET=snet-vm NSG=nsg-lablog-vm PIP=pip-lablog-vm VM=vm-lablog-rhel
+export MAIL="&lt;알림 받을 이메일&gt;"                                      # ← 본인 메일 (B6 알림 수신)
+<span class="c"># 22장 가이드의 변수 이름과 같게 맞춰 둔 값</span>
+export LAW=/subscriptions/$SUB/resourceGroups/$RG/providers/Microsoft.OperationalInsights/workspaces/$LAW_NAME
+export VM_RG=$RG AOAI_HOST=$AOAI.openai.azure.com
+export TAGS="purpose=aoai-logging-lab created=$(date +%F)"
+<span class="c"># 새 터미널에서도 이어서 쓰도록 파일로 저장합니다 (다시 열 때: source lablog.env)</span>
+cat &gt; lablog.env &lt;&lt;EOF
+export SUB="$SUB" LOC=$LOC SFX=$SFX RG=$RG LAW_NAME=$LAW_NAME APPI=$APPI AOAI=$AOAI ST=$ST
+export DEP=$DEP VNET=$VNET SNET=$SNET NSG=$NSG PIP=$PIP VM=$VM MAIL="$MAIL"
+export LAW=$LAW VM_RG=$VM_RG AOAI_HOST=$AOAI_HOST TAGS="$TAGS"
+EOF
+cat &gt;&gt; lablog.env &lt;&lt;'EOF'
+<span class="c"># VM 에서 스크립트 실행 (SSH 없이 az vm run-command 사용). 사용: vmrun [KEY=값 ...] &lt;&lt;'X' ... X</span>
+vmrun() { local s; s="$(cat)"; if [ $# -gt 0 ]; then az vm run-command invoke -g "$RG" -n "$VM" --command-id RunShellScript --scripts "$s" --parameters "$@" --query "value[0].message" -o tsv; else az vm run-command invoke -g "$RG" -n "$VM" --command-id RunShellScript --scripts "$s" --query "value[0].message" -o tsv; fi; }
+<span class="c"># Log Analytics 쿼리 실행 (사용: kq '&lt;KQL&gt;')</span>
+kq() { : "${WSID:=$(az monitor log-analytics workspace show -g "$RG" -n "$LAW_NAME" --query customerId -o tsv)}"; az monitor log-analytics query -w "$WSID" --analytics-query "$1" -o table; }
+EOF
+source lablog.env
+echo "RG=$RG  AOAI=$AOAI  VM=$VM" </code></pre></div><div class="expect"><div class="lbl">예상 결과</div><pre>RG=rg-lablog-x7k2q  AOAI=oai-lablog-x7k2q  VM=vm-lablog-rhel</pre></div><div class="callout"><div class="lbl">도우미 함수</div><p><code>vmrun</code> 은 VM 안에서 실행할 스크립트를 표준입력(heredoc)으로 받아 <code>az vm run-command</code> 로 실행하고, <code>kq</code> 는 Log Analytics 쿼리를 실행해 표로 보여 줍니다. VM 에 값을 넘길 때는 <code>vmrun KEY=값</code> 형식을 쓰며, <code>;</code> 처럼 셸 특수문자가 들어간 값(예: 연결 문자열)은 base64 로 넘깁니다(B3 참고). <code>az</code> 는 표의 열을 알파벳순으로 보여 주므로 아래 ‘예상 결과’와 열 순서가 다를 수 있습니다.</p></div></div><div class="step" id="a2"><h3><span class="badge">A2</span><span>리소스 그룹 · Log Analytics · Application Insights · 네트워크</span></h3><p class="meta">소요 약 2분</p><p>모든 로그가 모이는 <b>Log Analytics 워크스페이스</b>와, 그 워크스페이스에 연결된(workspace-based) <b>Application Insights</b>를 만듭니다. 앞서 정한 대로 앱·AOAI·VM 로그를 한 워크스페이스에서 시간으로 조인하기 위함입니다.</p><div class="codewrap nocap"><button class="copy" type="button">복사</button><pre class="code" data-run="A2"><code>az group create -n $RG -l $LOC --tags $TAGS -o none
+az monitor log-analytics workspace create -g $RG -n $LAW_NAME -l $LOC --sku PerGB2018 --retention-time 30 --tags $TAGS -o none
+az monitor app-insights component create -a $APPI -g $RG -l $LOC --kind web --application-type web --workspace "$LAW" --tags $TAGS -o none
+az network nsg create -g $RG -n $NSG -l $LOC --tags $TAGS -o none
+az network vnet create -g $RG -n $VNET -l $LOC --address-prefixes 10.20.0.0/16 --subnet-name $SNET --subnet-prefixes 10.20.1.0/24 --nsg $NSG --tags $TAGS -o none
+az network public-ip create -g $RG -n $PIP -l $LOC --sku Standard --allocation-method Static --tags $TAGS -o none</code></pre></div><div class="callout"><div class="lbl">공용 IP 는 왜 만드나요</div><p>새 가상 네트워크의 VM 은 기본 아웃바운드 접속이 없습니다. Standard 공용 IP 를 붙이면 <b>아웃바운드만</b> 열리고(인바운드는 NSG 에 규칙이 없어 차단), VM 이 AOAI · Azure Monitor · 패키지 저장소에 나갈 수 있습니다.</p></div><div class="codewrap"><div class="cap"><span>확인</span><span></span></div><button class="copy" type="button">복사</button><pre class="code" data-run="A2"><code>az resource list -g $RG -o table</code></pre></div><div class="expect"><div class="lbl">예상 결과</div><pre>Name              ResourceGroup     Location      Type
+----------------  ----------------  ------------  ---------------------------------------
+law-lablog-…       rg-lablog-…        koreacentral  Microsoft.OperationalInsights/workspaces
+appi-lablog-…      rg-lablog-…        koreacentral  Microsoft.Insights/components
+nsg-lablog-vm      rg-lablog-…        koreacentral  Microsoft.Network/networkSecurityGroups
+vnet-lablog        rg-lablog-…        koreacentral  Microsoft.Network/virtualNetworks
+pip-lablog-vm      rg-lablog-…        koreacentral  Microsoft.Network/publicIPAddresses</pre></div></div><div class="step" id="a3"><h3><span class="badge">A3</span><span>Azure OpenAI 리소스와 모델 배포</span></h3><p class="meta">소요 약 2분</p><p>실제 고객 환경과 같은 종류(<code>kind=OpenAI</code>)의 리소스를 만들고, 비추론(non-reasoning) 모델 <b>gpt-4.1-mini</b> 를 Global Standard 로 배포합니다. 사용자 지정 도메인(<code>--custom-domain</code>)은 관리 ID(Entra) 인증에 필요합니다.</p><div class="codewrap nocap"><button class="copy" type="button">복사</button><pre class="code" data-run="A3"><code>az cognitiveservices account create -g $RG -n $AOAI -l $LOC --kind OpenAI --sku S0 --custom-domain $AOAI --tags $TAGS --yes -o none
+az cognitiveservices account deployment create -g $RG -n $AOAI --deployment-name $DEP \
+  --model-name gpt-4.1-mini --model-version 2025-04-14 --model-format OpenAI --sku-name GlobalStandard --sku-capacity 20 -o none
+az cognitiveservices account deployment show -g $RG -n $AOAI --deployment-name $DEP --query properties.provisioningState -o tsv</code></pre></div><div class="expect"><div class="lbl">예상 결과</div><pre>Succeeded</pre></div><div class="callout warn"><div class="lbl">추론 모델(gpt-5 계열 등)을 쓰려면</div><p>이 실습의 코드는 <code>max_tokens</code> 를 사용합니다. gpt-5 계열 같은 추론 모델은 <code>max_tokens</code> 를 받지 않고 <code>max_completion_tokens</code> 를 요구하므로, 그 모델로 실습하려면 R3 의 호출부와 R7 probe 의 요청 본문(<code>"max_tokens":1</code>)을 바꿔야 합니다.</p></div></div><div class="step" id="a4"><h3><span class="badge">A4</span><span>RHEL 9 VM 과 관리 ID 권한</span></h3><p class="meta">소요 약 3분</p><p>앱·probe·에이전트가 돌 VM 입니다. <b>시스템 할당 관리 ID</b>를 켜고, 이 ID 에 AOAI 호출 역할(<code>Cognitive Services OpenAI User</code>)을 주어 probe 가 키 없이 호출하게 합니다.</p><div class="codewrap nocap"><button class="copy" type="button">복사</button><pre class="code" data-run="A4"><code>ssh-keygen -t rsa -b 3072 -N "" -f ./id_lab -C lablog-temp -q        # VM 생성에만 필요한 임시 키 (실습 후 삭제 — SSH 는 쓰지 않습니다)
+az vm create -g $RG -n $VM -l $LOC --image RedHat:RHEL:9-lvm-gen2:latest --size Standard_B2s \
+  --admin-username azureuser --ssh-key-values ./id_lab.pub --vnet-name $VNET --subnet $SNET \
+  --public-ip-address $PIP --nsg "" --assign-identity '[system]' --os-disk-size-gb 64 --storage-sku StandardSSD_LRS --tags $TAGS -o none
+VM_MI=$(az vm show -g $RG -n $VM --query identity.principalId -o tsv)
+AOAI_ID=$(az cognitiveservices account show -g $RG -n $AOAI --query id -o tsv)
+az role assignment create --assignee-object-id $VM_MI --assignee-principal-type ServicePrincipal \
+  --role "Cognitive Services OpenAI User" --scope $AOAI_ID -o none
+echo "export AOAI_ID=$AOAI_ID" &gt;&gt; lablog.env
+az vm show -g $RG -n $VM --query "{state:provisioningState, identity:identity.type}" -o table</code></pre></div><div class="expect"><div class="lbl">예상 결과</div><pre>State      Identity
+---------  --------------
+Succeeded  SystemAssigned</pre></div></div><div class="step" id="a5"><h3><span class="badge">A5</span><span>VM 준비 — Python 3.12 · 패키지</span></h3><p class="meta">소요 약 3분 · 첫 <code>vmrun</code> 은 30~60초 걸립니다</p><p><b>RHEL 9 의 기본 <code>python3</code> 는 3.9</b> 입니다. R4(Application Insights 계측, <code>azure-monitor-opentelemetry</code>)는 Python 3.10 이상이 필요하므로 3.12 를 설치해 전용 가상환경을 만듭니다. <code>initscripts</code> 는 Azure Monitor Agent(R5) 문서가 요구하는 패키지입니다.</p><div class="codewrap nocap"><button class="copy" type="button">복사</button><pre class="code" data-run="A5"><code>vmrun AOAI_HOST=$AOAI_HOST DEP=$DEP &lt;&lt;'VMEOF'
+set -e
+dnf install -y python3.12 python3.12-pip initscripts &gt;/tmp/dnf.log 2&gt;&amp;1 || { tail -20 /tmp/dnf.log; exit 1; }
+python3.12 --version
+install -d -m 0755 /opt/report-agent
+python3.12 -m venv /opt/report-agent/venv
+/opt/report-agent/venv/bin/pip install --quiet --upgrade pip
+/opt/report-agent/venv/bin/pip install --quiet "openai&gt;=3.0.0" "azure-monitor-opentelemetry&gt;=1.8.10"
+/opt/report-agent/venv/bin/pip list 2&gt;/dev/null | grep -i -E "^(openai|azure-monitor-opentelemetry|opentelemetry-sdk|httpx2?) "
+echo "== AOAI 엔드포인트 도달 확인 (키 없이 호출하므로 401 이 정상)"
+curl -s -o /dev/null -w "%{http_code} dns=%{time_namelookup}s tcp=%{time_connect}s tls=%{time_appconnect}s\n" --max-time 15 "https://$AOAI_HOST/openai/deployments/$DEP/chat/completions?api-version=2024-10-21" -X POST -H "Content-Type: application/json" -d '{}'
+VMEOF</code></pre></div><div class="expect"><div class="lbl">예상 결과</div><pre>Python 3.12.x
+azure-monitor-opentelemetry  1.8.11
+httpx2                       2.x
+openai                       3.x
+opentelemetry-sdk            1.4x
+== AOAI 엔드포인트 도달 확인 (키 없이 호출하므로 401 이 정상)
+401 dns=0.019s tcp=0.021s tls=0.048s</pre></div><div class="callout"><div class="lbl">run-command 한 번에 약 30초</div><p>VM 에이전트가 스크립트를 받아 실행하는 시간입니다. 오래 걸리는 설치는 한 번에 묶어서 실행하세요.</p></div></div></section><section id="b"><h2>B · 로그 켜기<small>R1 · R5 · R3/R4 · R7 · R2 · R8 · R6 순서 — 데이터가 쌓이는 시간을 벌기 위해 가이드의 R 번호 순서와 다릅니다</small></h2><div class="step" id="b1"><h3><span class="badge">B1 · R1</span><span>AOAI 진단 설정 → Log Analytics</span></h3><p class="meta">코드·재배포 없음 · 소요 약 1분 · 권한: Monitoring Contributor</p><p>AOAI 가 서비스 쪽에서 잰 <b>요청별 처리 시간(DurationMs)과 상태 코드</b>를 Log Analytics 로 보냅니다. <code>RequestResponse</code>(요청 로그) · <code>Audit</code>(관리 이벤트) · <code>AllMetrics</code>(메트릭)만 켭니다.</p><div class="codewrap"><div class="cap"><span>22장 R1 스니펫 그대로</span><span></span></div><button class="copy" type="button">복사</button><pre class="code" data-run="B1"><code>AOAI_ID=$(az cognitiveservices account show -g $RG -n $AOAI --query id -o tsv)
+az monitor diagnostic-settings create -n diag-aoai-latency --resource $AOAI_ID \
+  --workspace $LAW --metrics '[{"category":"AllMetrics","enabled":true}]' \
+  --logs '[{"category":"RequestResponse","enabled":true},
+           {"category":"Audit","enabled":true}]'
+az monitor diagnostic-settings list --resource $AOAI_ID -o table</code></pre></div><div class="expect"><div class="lbl">예상 결과 (생성된 설정의 JSON 이 먼저 출력되고, 마지막에 이 목록)</div><pre>Name               ResourceGroup  WorkspaceId
+-----------------  -------------  ---------------------------------------------------------------
+diag-aoai-latency  rg-lablog-…     /subscriptions/…/workspaces/law-lablog-…</pre></div><div class="callout"><div class="lbl">로그는 바로 보이지 않습니다</div><p>실측(두 번 반복): <b>진단 설정 후 약 20~26분이 지나서야 AOAI 요청이 기록되기 시작</b>했고, 그 전에 한 호출은 로그에 남지 않았습니다(나중에 채워지지 않음). 기록이 시작된 뒤에는 평균 약 2분 뒤에 조회됩니다. 그래서 <b>B1 을 가장 먼저</b> 하고 약 30분 뒤에 확인하며, 기다리는 동안 B2~B7 을 진행하세요. 확인은 C1 에서 합니다.</p></div></div><div class="step" id="b2"><h3><span class="badge">B2 · R5</span><span>VM 에이전트(Azure Monitor Agent) + 수집 규칙(DCR)</span></h3><p class="meta">소요 약 3분 · 권한: Monitoring Contributor</p><p>VM 의 CPU·메모리·디스크·네트워크 <b>성능 카운터 12개</b>(60초 간격)와 <b>cron·local5 syslog</b> 만 수집하는 규칙을 만들어 VM 에 연결합니다. cron 로그는 정각·30분에 어떤 작업이 도는지 찾기 위한 것이고, local5 는 R7 probe 와 스냅샷이 쓰는 로그 채널입니다.</p><div class="codewrap"><div class="cap"><span>① 수집 규칙 파일 만들기</span><span></span></div><button class="copy" type="button">복사</button><pre class="code" data-run="B2"><code>cat &gt; R5_dcr_linux.json &lt;&lt;'EOF'
+{ "properties": {
+  "dataSources": {
+    "performanceCounters": [ { "name": "perf60s", "streams": ["Microsoft-Perf"],
+      "samplingFrequencyInSeconds": 60,
+      "counterSpecifiers": [
+        "Processor(*)\\% Processor Time", "Processor(*)\\% IO Wait Time",
+        "Memory(*)\\% Used Memory", "Memory(*)\\Available MBytes Memory",
+        "Memory(*)\\% Used Swap Space", "Logical Disk(*)\\Disk Transfers/sec",
+        "Logical Disk(*)\\% Free Space", "Network(*)\\Total Rx Errors",
+        "Network(*)\\Total Tx Errors", "Network(*)\\Total Bytes Received",
+        "Network(*)\\Total Bytes Transmitted", "System(*)\\Load1" ] } ],
+    "syslog": [ { "name": "cron-probe", "streams": ["Microsoft-Syslog"],
+      "facilityNames": ["cron", "local5"],
+      "logLevels": ["Info", "Notice", "Warning", "Error", "Critical",
+                    "Alert", "Emergency"] } ] },
+  "destinations": { "logAnalytics": [
+    { "workspaceResourceId": "&lt;LAW_ID&gt;", "name": "law" } ] },
+  "dataFlows": [
+    { "streams": ["Microsoft-Perf"], "destinations": ["law"],
+      "transformKql": "source", "outputStream": "Microsoft-Perf" },
+    { "streams": ["Microsoft-Syslog"], "destinations": ["law"],
+      "transformKql": "source", "outputStream": "Microsoft-Syslog" } ] } }
+EOF</code></pre></div><div class="codewrap"><div class="cap"><span>② 에이전트 설치 + 수집 규칙 연결 (22장 R5 스니펫 그대로)</span><span></span></div><button class="copy" type="button">복사</button><pre class="code" data-run="B2"><code>VM_ID=$(az vm show -g $RG -n $VM --query id -o tsv)
+az vm identity assign -g $RG -n $VM                  # 관리 ID (있으면 생략)
+az vm extension set -g $RG --vm-name $VM --name AzureMonitorLinuxAgent \
+  --publisher Microsoft.Azure.Monitor --enable-auto-upgrade true
+
+sed "s#&lt;LAW_ID&gt;#$LAW#" R5_dcr_linux.json &gt; /tmp/dcr.json   # ID 치환
+DCR_ID=$(az monitor data-collection rule create -g $RG -n dcr-aoai-vm-latency \
+  -l $LOC --kind Linux --rule-file /tmp/dcr.json --query id -o tsv)
+az monitor data-collection rule association create --name assoc-$VM \
+  --rule-id $DCR_ID --resource $VM_ID</code></pre></div><div class="expect"><div class="lbl">예상 결과 (확장 · 규칙 연결 JSON)</div><pre>{ "name": "AzureMonitorLinuxAgent", "provisioningState": "Succeeded", "typeHandlerVersion": "1.4x", … }
+{ "name": "assoc-vm-lablog-rhel", "type": "Microsoft.Insights/dataCollectionRuleAssociations", … }</pre></div><div class="callout"><div class="lbl">확인은 약 10분 뒤</div><p>연결 후 <b>약 5~10분</b>이면 <code>Heartbeat</code> · <code>Perf</code> · <code>Syslog</code> 가 들어옵니다(C1 에서 확인). 카운터 이름은 Linux 형식(<code>Logical Disk</code> 는 공백 포함)을 지켜야 합니다.</p></div></div><div class="step" id="b3"><h3><span class="badge">B3 · R3 · R4</span><span>데모 앱 — 호출 로그(R3) + Application Insights(R4)</span></h3><p class="meta">소요 약 3분 · 앱 코드 변경은 ‘with 블록으로 감싸기’ 한 곳</p><p>22장의 R3 헬퍼(<code>call_log</code>)와 호출부 예시를 그대로 쓰는 <b>데모 앱</b>을 systemd 서비스로 띄웁니다. 12초 안팎마다 AOAI 를 호출하면서 일부러 <b>짧은 timeout(1초)</b> 호출과 <b>없는 배포 이름</b> 호출을 섞어, 운영에서 보게 될 상태(ok · client_timeout · error)를 모두 만듭니다. Application Insights(R4)는 <code>azure-monitor-opentelemetry</code> 자동 계측 + 환경변수 파일로 연결합니다.</p><div class="codewrap"><div class="cap"><span>앱 파일 설치 · 환경변수 · systemd 서비스 시작 (긴 스크립트 — 복사 버튼 사용)</span><span></span></div><button class="copy" type="button">복사</button><pre class="code" data-run="B3"><code>KEY=$(az cognitiveservices account keys list -g $RG -n $AOAI --query key1 -o tsv)
+CS=$(az monitor app-insights component show -a $APPI -g $RG --query connectionString -o tsv)
+vmrun AOAI_HOST=$AOAI_HOST DEP=$DEP AOAI_KEY=$KEY CS_B64="$(printf %s "$CS" | base64 | tr -d '\n')" &lt;&lt;'VMEOF'
+set -e
+install -d /opt/report-agent /etc/report-agent
+cat &gt; /opt/report-agent/R3_aoai_call_log.py &lt;&lt;'EOF'
+<span class="c"># R3_aoai_call_log.py - AOAI 호출 1회(시도)마다 JSON 1줄을 남기는 헬퍼. 프로젝트에 한 번 추가합니다.</span>
+<span class="c"># 요구: Python 3.9+ / openai 패키지 (AzureOpenAI). 프롬프트·응답 본문은 기록하지 않습니다(메타데이터만).</span>
+import json, logging, threading, time, uuid
+from contextlib import contextmanager
+
+log = logging.getLogger("aoai.call")       # 파일·App Insights(R4)로
+_lock, _busy = threading.Lock(), 0
+ERR = {"APITimeoutError": "client_timeout"}    # 그 외 예외는 "error"
+
+@contextmanager
+def call_log(**fields):
+    global _busy
+    with _lock:
+        _busy += 1
+        n = _busy                       # 시작 시점의 동시 호출 수
+    rec = {"event": "aoai_call", "cid": str(uuid.uuid4()),
+           "inflight": n, **fields}
+    t0 = time.perf_counter()
+    try:
+        yield rec
+        rec["outcome"] = "ok"
+    except Exception as e:              # 기록 후 예외는 그대로 전달
+        rec.update(outcome=ERR.get(type(e).__name__, "error"),
+                   error=type(e).__name__,
+                   status=getattr(e, "status_code", None),
+                   request_id=getattr(e, "request_id", None))
+        raise
+    finally:
+        with _lock:
+            _busy -= 1
+        rec["total_ms"] = round((time.perf_counter() - t0) * 1000)
+        log.info(json.dumps(rec, ensure_ascii=False))
+EOF
+cat &gt; /opt/report-agent/R3_usage_example.py &lt;&lt;'EOF'
+<span class="c"># R3_usage_example.py - 기존 호출부에 적용하는 방법 (클라이언트 설정 + with 블록으로 감싸기)</span>
+import logging, os
+from openai import AzureOpenAI, Timeout
+from R3_aoai_call_log import call_log
+
+logging.basicConfig(level=logging.INFO, format="%(message)s")   # 운영에서는 파일/R4 핸들러로 대체
+
+READ_TIMEOUT = 60.0                  # ← 현재 운영 값으로
+client = AzureOpenAI(
+    azure_endpoint=os.environ["AZURE_OPENAI_ENDPOINT"],
+    api_key=os.environ["AZURE_OPENAI_API_KEY"],  # 권장: 관리 ID
+    api_version="2024-10-21",
+    timeout=Timeout(5.0, read=READ_TIMEOUT),
+    max_retries=0)           # SDK 자동 재시도 끔 → 시도마다 기록
+
+def ask(messages, deployment, job_id=""):
+    with call_log(deployment=deployment, job_id=job_id, max_tokens=800,
+                  stream=False, read_timeout_s=READ_TIMEOUT) as rec:
+        raw = client.chat.completions.with_raw_response.create(
+            model=deployment, messages=messages, max_tokens=800,
+            extra_headers={"x-ms-client-request-id": rec["cid"]})
+        res, h = raw.parse(), raw.headers
+        rec.update(status=raw.status_code,
+                   request_id=h.get("x-request-id"),
+                   apim_request_id=h.get("apim-request-id"),
+                   region=h.get("x-ms-region"),
+                   prompt_tokens=res.usage.prompt_tokens,
+                   completion_tokens=res.usage.completion_tokens,
+                   finish_reason=res.choices[0].finish_reason)
+    return res
+EOF
+cat &gt; /opt/report-agent/app_demo.py &lt;&lt;'EOF'
+<span class="c"># /opt/report-agent/app_demo.py — 실습용 데모 앱(report-agent 흉내): AOAI 를 계속 호출하면서 R3(호출 로그)·R4(App Insights)를 적용합니다.</span>
+import logging, os, random, sys, time
+sys.path.insert(0, "/opt/report-agent")
+
+from azure.monitor.opentelemetry import configure_azure_monitor      # R4: 연결 문자열은 환경변수에서
+configure_azure_monitor(logger_name="aoai")
+logging.getLogger("aoai").setLevel(logging.INFO)                     # R3 로그 → AppTraces
+
+import R3_usage_example as r3                                        # R3: 클라이언트 설정 + ask()
+from R3_aoai_call_log import call_log
+logging.getLogger().setLevel(logging.WARNING)                       # azure-core 의 HTTP 로그가 journald 를 채우지 않도록 (aoai 로거는 위에서 INFO)
+from openai import AzureOpenAI, Timeout
+
+DEP = os.environ.get("AOAI_DEPLOYMENT", "gpt41mini")
+IMPATIENT_S = 1.0                                                    # 일부러 짧게 → client_timeout(서버 쪽에서는 499 예상)
+impatient = AzureOpenAI(azure_endpoint=os.environ["AZURE_OPENAI_ENDPOINT"], api_key=os.environ["AZURE_OPENAI_API_KEY"],
+                        api_version="2024-10-21", timeout=Timeout(5.0, read=IMPATIENT_S), max_retries=0)
+
+def ask_impatient(messages, deployment, job_id=""):                  # R3 의 ask() 와 같은 구조, 클라이언트만 다름
+    with call_log(deployment=deployment, job_id=job_id, max_tokens=800, stream=False, read_timeout_s=IMPATIENT_S) as rec:
+        raw = impatient.chat.completions.with_raw_response.create(
+            model=deployment, messages=messages, max_tokens=800, extra_headers={"x-ms-client-request-id": rec["cid"]})
+        res, h = raw.parse(), raw.headers
+        rec.update(status=raw.status_code, request_id=h.get("x-request-id"), apim_request_id=h.get("apim-request-id"),
+                   region=h.get("x-ms-region"), prompt_tokens=res.usage.prompt_tokens,
+                   completion_tokens=res.usage.completion_tokens, finish_reason=res.choices[0].finish_reason)
+    return res
+
+SHORT = [{"role": "user", "content": "한 문장으로 인사해줘."}]
+LONG = [{"role": "user", "content": "증권사 일간 시장 리포트를 쓰는 방법을 한국어 700자 분량으로 자세히 설명해줘."}]
+
+i = 0
+while True:
+    i += 1
+    r = random.random()
+    try:
+        if r &lt; 0.55:   r3.ask(SHORT, DEP, job_id=f"job-{i}")
+        elif r &lt; 0.80: r3.ask(LONG, DEP, job_id=f"job-{i}")
+        elif r &lt; 0.95: ask_impatient(LONG, DEP, job_id=f"job-{i}")   # client_timeout
+        else:          r3.ask(SHORT, "no-such-deployment", job_id=f"job-{i}")   # 404 → outcome=error
+    except Exception:
+        pass                                                         # call_log 가 이미 기록함
+    time.sleep(random.uniform(8, 16))
+EOF
+cat &gt; /etc/systemd/system/report-agent.service &lt;&lt;'EOF'
+[Unit]
+Description=report-agent demo (AOAI caller)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+EnvironmentFile=/etc/report-agent/app.env
+ExecStart=/opt/report-agent/venv/bin/python /opt/report-agent/app_demo.py
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+EOF
+cat &gt; /tmp/R4_telemetry.env.sample &lt;&lt;'EOF'
+<span class="c"># /etc/report-agent/telemetry.env  (systemd EnvironmentFile, 권한 600) — 앱 서비스 이름에 맞게 경로를 바꾸세요</span>
+<span class="c"># 설치: pip install "azure-monitor-opentelemetry&gt;=1.8.10"   (Python 3.10+)</span>
+APPLICATIONINSIGHTS_CONNECTION_STRING="&lt;Application Insights 연결 문자열&gt;"
+OTEL_SERVICE_NAME=report-agent
+OTEL_RESOURCE_ATTRIBUTES=service.namespace=contoso
+OTEL_TRACES_SAMPLER=always_on
+EOF
+<span class="c"># 앱 환경변수 (키는 권한 600 파일에만 둡니다)</span>
+umask 077
+printf 'AZURE_OPENAI_ENDPOINT=https://%s\nAZURE_OPENAI_API_KEY=%s\nAOAI_DEPLOYMENT=%s\n' "$AOAI_HOST" "$AOAI_KEY" "$DEP" &gt; /etc/report-agent/app.env
+umask 022
+<span class="c"># R4 ① 환경변수 파일 설치 + 연결 문자열 입력 (22장의 'vi' 대신 sed)</span>
+install -D -m 0600 /tmp/R4_telemetry.env.sample /etc/report-agent/telemetry.env
+CS=$(printf %s "$CS_B64" | base64 -d)
+sed -i "s#^APPLICATIONINSIGHTS_CONNECTION_STRING=.*#APPLICATIONINSIGHTS_CONNECTION_STRING=\"$CS\"#" /etc/report-agent/telemetry.env
+<span class="c"># R4 ③ systemd 에 환경변수 파일 연결 (22장의 'systemctl edit' 와 같은 결과의 드롭인 파일)</span>
+install -d /etc/systemd/system/report-agent.service.d
+printf '[Service]\nEnvironmentFile=/etc/report-agent/telemetry.env\n' &gt; /etc/systemd/system/report-agent.service.d/telemetry.conf
+systemctl daemon-reload
+systemctl enable --now report-agent
+sleep 25
+systemctl is-active report-agent
+journalctl -u report-agent -n 5 --no-pager -o cat | cut -c1-330
+VMEOF</code></pre></div><div class="expect"><div class="lbl">예상 결과</div><pre>active
+{"event": "aoai_call", "cid": "83881d35-…", "inflight": 1, "deployment": "gpt41mini", "job_id": "job-6", "max_tokens": 800, "stream": false, "read_timeout_s": 60.0, "status": 200, "request_id": "dad156a2-…", "apim_request_id": "b951a6ab-…", "region": "Korea Central", "prompt_tokens": 16, "completion_tokens": 9, "finish_reason": "stop", "outcome": "ok", "total_ms": 1147}
+{"event": "aoai_call", …, "deployment": "no-such-deployment", "outcome": "error", "error": "NotFoundError", "status": 404, "total_ms": 267}
+{"event": "aoai_call", …, "read_timeout_s": 1.0, "outcome": "client_timeout", "error": "APITimeoutError", "status": null, "total_ms": 1027}</pre></div><div class="callout"><div class="lbl">이 단계에서 확인되는 것</div><ul><li>JSON 한 줄에 <b>지연(total_ms) · 결과(outcome) · 요청 ID · 토큰 수 · 동시 호출 수(inflight)</b> 가 모두 남습니다. 프롬프트·응답 본문은 없습니다.</li><li>응답 헤더 <code>x-request-id</code> · <code>apim-request-id</code> · <code>x-ms-region</code> 이 실제로 들어왔습니다.</li><li><code>max_retries=0</code> 이라 SDK 의 자동 재시도가 꺼져 있어 <b>시도마다 한 줄</b>이 남습니다.</li></ul></div><details><summary>앱이 보내는 텔레메트리 · 샘플링 주의</summary><div class="inner"><p><code>OTEL_TRACES_SAMPLER=always_on</code> 은 <b>진단 기간에 꼭 필요한 설정</b>입니다. 최근 버전의 기본값은 초당 5 트레이스(rate-limited)라서 호출이 많으면 dependency 가 빠집니다. 로그(AppTraces)는 샘플링되지 않습니다. 샘플링 중에는 건수를 <code>count()</code> 가 아니라 <code>sum(ItemCount)</code> 로 세세요.</p></div></details></div><div class="step" id="b4"><h3><span class="badge">B4 · R7</span><span>합성 probe — DNS · TCP · TLS · 대기 시간 분리</span></h3><p class="meta">소요 약 2분 · 키 없이 관리 ID 로 인증</p><p>같은 소형 AOAI 호출(<code>max_tokens=1</code>)과 로컬 앱 URL 을 <b>1분마다</b> 호출해 DNS · TCP · TLS · 서버 대기 시간을 따로 JSON 한 줄로 남기고, syslog(local5) → Azure Monitor Agent(B2) → <code>Syslog</code> 테이블로 수집합니다. 느리거나 실패하면 VM 상태 <b>스냅샷</b>을 5분에 한 번 저장합니다.</p><div class="codewrap"><div class="cap"><span>probe 설치 (긴 스크립트 — 복사 버튼 사용)</span><span></span></div><button class="copy" type="button">복사</button><pre class="code" data-run="B4"><code>vmrun AOAI_HOST=$AOAI_HOST DEP=$DEP &lt;&lt;'VMEOF'
+set -e
+install -d /tmp/r7 /opt/lab-www
+cd /tmp/r7
+cat &gt; R7_aoai_probe.sh &lt;&lt;'EOF'
+<span class="c">#!/bin/bash</span>
+<span class="c"># R7_aoai_probe.sh - 1분마다 실행하는 합성 probe (VM 안/밖 어디서나 같은 스크립트 사용)</span>
+<span class="c">#   (1) AOAI 소형 호출(max_tokens=1)  (2) VM 로컬 앱 URL  → 구간별 시간을 JSON 1줄로 기록</span>
+<span class="c">#   기록 위치: syslog(local5) → Azure Monitor Agent(R5) → Log Analytics 'Syslog' 테이블, 그리고 표준 출력</span>
+<span class="c">#   필요: curl(7.29 이상), awk, logger  |  설정: /etc/aoai-probe.env (R7_aoai-probe.env.sample 참고)</span>
+set -u
+. "${PROBE_ENV:-/etc/aoai-probe.env}"
+ROLE="${PROBE_ROLE:-vm-inside}"; SLOW_MS="${SLOW_MS:-8000}"; API_VER="${AOAI_API_VERSION:-2024-10-21}"
+
+emit() {  # $1=대상  $2=curl 종료코드  $3=write-out 문자열 (curl 시간값은 누적이므로 차이를 구해 구간별로 기록)
+  IFS="|" read -r dns tcp tls ttfb total code ip conns &lt;&lt;&lt;"$3"
+  local line
+  line=$(awk -v role="$ROLE" -v tgt="$1" -v rc="$2" -v code="${code:-0}" -v ip="${ip:-}" -v cn="${conns:-0}" \
+    -v d="${dns:-0}" -v c="${tcp:-0}" -v t="${tls:-0}" -v f="${ttfb:-0}" -v T="${total:-0}" 'BEGIN{
+      tcp_ms = (c &gt; d) ? c - d : 0; tls_ms = (t &gt; c) ? t - c : 0; base = (t &gt; 0) ? t : c;
+      wait_ms = (f &gt; base) ? f - base : ((f == 0 &amp;&amp; T &gt; base) ? T - base : 0);
+      printf "{\"event\":\"aoai_probe\",\"role\":\"%s\",\"target\":\"%s\",\"rc\":%d,\"code\":\"%s\",\"dns_ms\":%d,\"tcp_ms\":%d,\"tls_ms\":%d,\"wait_ms\":%d,\"total_ms\":%d,\"ip\":\"%s\",\"new_conns\":%d}",
+             role, tgt, rc, code, d*1000, tcp_ms*1000, tls_ms*1000, wait_ms*1000, T*1000, ip, cn }')
+  echo "$line"; logger -t aoai-probe -p local5.info -- "$line"
+  TOTAL_MS=$(awk -v T="${total:-0}" 'BEGIN{printf "%d", T*1000}')
+}
+
+<span class="c"># 인증: API 키가 없으면 VM의 Managed Identity 토큰 사용 (역할: Cognitive Services OpenAI User)</span>
+if [ -n "${AOAI_API_KEY:-}" ]; then AUTH=(-H "api-key: ${AOAI_API_KEY}")
+else AUTH=(-H "Authorization: Bearer $(curl -s --max-time 5 -H Metadata:true "http://169.254.169.254/metadata/identity/oauth2/token?api-version=2018-02-01&amp;resource=https://cognitiveservices.azure.com" | sed -n 's/.*"access_token":"\([^"]*\)".*/\1/p')"); fi
+
+slow=0
+<span class="c"># AOAI 소형 호출 — 같은 endpoint·deployment, max_tokens=1 (curl 시간값은 DNS→TCP→TLS 누적)</span>
+<span class="c"># --http1.1: HTTP/2 에서는 curl 의 첫 바이트(wait) 시간이 부정확합니다</span>
+WF='%{time_namelookup}|%{time_connect}|%{time_appconnect}|'
+WF+='%{time_starttransfer}|%{time_total}|%{http_code}|%{remote_ip}|%{num_connects}'
+BASE="${AOAI_ENDPOINT%/}/openai/deployments/${AOAI_DEPLOYMENT}"
+URL="$BASE/chat/completions?api-version=${API_VER}"
+out=$(curl -sS --http1.1 -o /dev/null --max-time "${PROBE_TIMEOUT:-60}" -X POST "$URL" \
+  "${AUTH[@]}" -H "Content-Type: application/json" \
+  -H "x-ms-client-request-id: probe-$(date +%s%N)" \
+  -d '{"messages":[{"role":"user","content":"ping"}],"max_tokens":1}' \
+  -w "$WF" 2&gt;/dev/null); rc=$?
+emit aoai "$rc" "$out"
+{ [ "$rc" -ne 0 ] || [ "$TOTAL_MS" -ge "$SLOW_MS" ]; } &amp;&amp; slow=1
+
+<span class="c"># (2) VM 로컬 앱 URL (APP_URLS 에 공백으로 구분해 지정; VM 밖 probe 에서는 비워 둡니다)</span>
+for u in ${APP_URLS:-}; do
+  out=$(curl -sS -o /dev/null --max-time 30 "$u" -w "$WF" 2&gt;/dev/null); rc=$?
+  emit "app:${u##*:}" "$rc" "$out"; { [ "$rc" -ne 0 ] || [ "$TOTAL_MS" -ge "$SLOW_MS" ]; } &amp;&amp; slow=1
+done
+
+<span class="c"># 느리거나 실패했으면 5분에 한 번만 VM 상태 스냅샷 저장 (별도 transient 서비스)</span>
+SNAP="${SNAPSHOT:-/opt/aoai-probe/aoai_snapshot.sh}"
+if [ "$slow" = 1 ] &amp;&amp; [ -x "$SNAP" ] &amp;&amp; [ -z "$(find /tmp/.aoai_snap -mmin -5 2&gt;/dev/null)" ]; then
+  touch /tmp/.aoai_snap   # systemd-run: 타이머 서비스가 끝나도 스냅샷이 중단되지 않게 별도 서비스로 실행
+  systemd-run --quiet --no-block --collect "$SNAP" 2&gt;/dev/null || { "$SNAP" &gt;/dev/null 2&gt;&amp;1 &amp; }
+fi
+EOF
+cat &gt; R7_aoai_snapshot.sh &lt;&lt;'EOF'
+<span class="c">#!/bin/bash</span>
+<span class="c"># R7_aoai_snapshot.sh - 지연 순간의 VM 상태를 한 파일로 저장하고, 요약 1줄을 syslog(local5)로 남깁니다 (읽기 전용 명령만 사용)</span>
+<span class="c">#   필요: procps(vmstat, top, ps), iproute(ss, nstat). iostat 은 sysstat 패키지가 있을 때만 사용합니다.</span>
+DIR="${SNAP_DIR:-/var/log/aoai-probe}"; mkdir -p "$DIR"; OUT="$DIR/snap-$(date -u +%Y%m%dT%H%M%SZ).txt"
+{
+  echo "== 시각(UTC)";            date -u +%FT%TZ
+  echo "== 부하/메모리";          uptime; free -m
+  echo "== vmstat (r=실행 대기, wa=I/O 대기)"; vmstat 1 3
+  echo "== CPU 상위 프로세스(순간값, top 2회차)"; top -b -n 2 -d 1 | awk '/^top - /{n++} n==2' | head -14
+  echo "== 디스크 I/O";          command -v iostat &gt;/dev/null &amp;&amp; iostat -x 1 2 || echo "(sysstat 미설치)"
+  echo "== 소켓 요약";            ss -s
+  echo "== 443 연결 상세 (rto/rtt/cwnd)"; ss -tin '( dport = :443 )' | head -60
+  echo "== TCP 카운터(누적)";     nstat -asz TcpRetransSegs TcpExtTCPTimeouts TcpExtTCPSynRetrans TcpAttemptFails
+  echo "== systemd timer";       systemctl list-timers --all --no-pager | head -15
+  echo "== 최근 5분 cron 로그";   journalctl -u crond --since "-5 min" --no-pager 2&gt;/dev/null | tail -20
+} &gt; "$OUT" 2&gt;&amp;1
+
+<span class="c"># 요약 1줄 → Syslog 테이블에서 시각으로 바로 대조 (r=실행 대기, wa=I/O 대기 %, est443=443 연결 수)</span>
+read -r R WA &lt; &lt;(vmstat 1 2 | tail -1 | awk '{print $1, $16}')
+EST=$(ss -tn state established '( dport = :443 )' 2&gt;/dev/null | tail -n +2 | wc -l | tr -d ' ')
+RETR=$(nstat -az TcpRetransSegs 2&gt;/dev/null | awk '$1=="TcpRetransSegs"{print $2}')
+logger -t aoai-snap -p local5.info -- "{\"event\":\"aoai_snapshot\",\"file\":\"$(basename "$OUT")\",\"load1\":\"$(cut -d' ' -f1 /proc/loadavg 2&gt;/dev/null)\",\"runq\":${R:-0},\"iowait_pct\":${WA:-0},\"est443\":$EST,\"tcp_retrans_total\":${RETR:-0}}"
+find "$DIR" -name 'snap-*.txt' -mtime +7 -delete      # 7일 지난 스냅샷 정리
+EOF
+cat &gt; R7_aoai-probe.env.sample &lt;&lt;'EOF'
+<span class="c"># /etc/aoai-probe.env  (권한 600, 소유자 root) — 값은 이 파일에만 두고 슬라이드·메일·코드에 적지 않습니다</span>
+<span class="c"># 셸이 그대로 읽는 파일이므로 공백이 있는 값은 큰따옴표로 감쌉니다</span>
+AOAI_ENDPOINT="https://&lt;리소스 이름&gt;.openai.azure.com"
+<span class="c"># 앱이 쓰는 deployment 이름과 동일하게</span>
+AOAI_DEPLOYMENT="&lt;deployment 이름&gt;"
+<span class="c"># 비워 두면 VM의 Managed Identity 토큰을 사용합니다 (권장, 역할: Cognitive Services OpenAI User)</span>
+AOAI_API_KEY=""
+<span class="c"># 로컬 앱 URL (가용성 테스트가 호출하는 경로와 동일하게). VM 밖 probe 는 비워 둡니다</span>
+APP_URLS="http://127.0.0.1:11202/&lt;경로&gt; http://127.0.0.1:11203/&lt;경로&gt;"
+SLOW_MS=8000
+<span class="c"># VM 밖에 두는 probe 는 vm-outside 로 바꿉니다</span>
+PROBE_ROLE=vm-inside
+EOF
+cat &gt; R7_aoai-probe.service &lt;&lt;'EOF'
+[Unit]
+Description=AOAI latency probe (1 shot)
+
+[Service]
+Type=oneshot
+ExecStart=/opt/aoai-probe/aoai_probe.sh
+EOF
+cat &gt; R7_aoai-probe.timer &lt;&lt;'EOF'
+[Unit]
+Description=Run AOAI latency probe every minute
+
+[Timer]
+OnCalendar=*-*-* *:*:00
+AccuracySec=1s
+
+[Install]
+WantedBy=timers.target
+EOF
+cat &gt; R7_install.sh &lt;&lt;'EOF'
+<span class="c">#!/bin/bash</span>
+<span class="c"># R7_install.sh - probe 설치 (root 권한). 같은 폴더에 R7_* 파일이 있다고 가정합니다.</span>
+set -e
+install -d /opt/aoai-probe /var/log/aoai-probe
+install -m 0755 R7_aoai_probe.sh    /opt/aoai-probe/aoai_probe.sh
+install -m 0755 R7_aoai_snapshot.sh /opt/aoai-probe/aoai_snapshot.sh
+[ -f /etc/aoai-probe.env ] || install -m 0600 R7_aoai-probe.env.sample /etc/aoai-probe.env   # 설치 후 값을 채우세요
+install -m 0644 R7_aoai-probe.service /etc/systemd/system/aoai-probe.service
+install -m 0644 R7_aoai-probe.timer   /etc/systemd/system/aoai-probe.timer
+systemctl daemon-reload
+systemctl enable --now aoai-probe.timer
+systemctl list-timers aoai-probe.timer --no-pager
+EOF
+chmod +x R7_*.sh
+<span class="c"># 실습용 '로컬 앱 URL' (운영에서는 앱의 실제 URL 을 APP_URLS 에 넣습니다)</span>
+cat &gt; /etc/systemd/system/lab-http.service &lt;&lt;'EOF'
+[Unit]
+Description=lab local app endpoint (stand-in for report-agent port 11202)
+
+[Service]
+WorkingDirectory=/opt/lab-www
+ExecStart=/usr/bin/python3 -m http.server 11202 --bind 127.0.0.1
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
+EOF
+echo ok &gt; /opt/lab-www/health
+systemctl daemon-reload &amp;&amp; systemctl enable --now lab-http.service
+<span class="c"># ---- 22장 R7_usage.sh 의 순서 ----</span>
+bash R7_install.sh                          # 설치 + 1분 타이머 등록
+<span class="c"># ('sudo vi /etc/aoai-probe.env' 대신 비대화식으로 값 입력 — AOAI_API_KEY 를 비워 관리 ID 로 인증)</span>
+cat &gt; /etc/aoai-probe.env &lt;&lt;EOF
+AOAI_ENDPOINT="https://$AOAI_HOST"
+AOAI_DEPLOYMENT="$DEP"
+AOAI_API_KEY=""
+APP_URLS="http://127.0.0.1:11202/health"
+SLOW_MS=8000
+PROBE_ROLE=vm-inside
+EOF
+chmod 600 /etc/aoai-probe.env
+systemctl start aoai-probe.service          # 1회 실행 → JSON 줄 확인
+sleep 2
+journalctl -u aoai-probe -n 6 --no-pager -o cat | cut -c1-300
+systemctl list-timers aoai-probe.timer --no-pager | head -3
+VMEOF</code></pre></div><div class="expect"><div class="lbl">예상 결과</div><pre>{"event":"aoai_probe","role":"vm-inside","target":"aoai","rc":0,"code":"200","dns_ms":4,"tcp_ms":1,"tls_ms":19,"wait_ms":643,"total_ms":681,"ip":"20.214.130.66","new_conns":1}
+{"event":"aoai_probe","role":"vm-inside","target":"app:11202/health","rc":0,"code":"200","dns_ms":0,"tcp_ms":0,"tls_ms":0,"wait_ms":1,"total_ms":1,"ip":"127.0.0.1","new_conns":1}</pre></div><div class="callout warn"><div class="lbl">실습에서 찾아 고친 두 가지</div><ul><li><b><code>curl --http1.1</code></b> — curl 7.x 는 HTTP/2 에서 첫 바이트 시간(<code>time_starttransfer</code>)을 연결 직후로 기록해 <code>wait_ms</code> 가 항상 0 이 됩니다. HTTP/1.1 로 고정하면 정상 값(예: 643ms)이 나옵니다. 앱의 Python SDK 도 HTTP/1.1 입니다.</li><li><b><code>systemd-run</code> 으로 스냅샷 실행</b> — 타이머가 띄운 oneshot 서비스가 끝나면 그 안에서 백그라운드로 띄운 스냅샷이 함께 종료되어 파일이 중간에 잘렸습니다. 별도 transient 서비스로 실행하도록 바꿨습니다.</li></ul></div><details><summary>스냅샷이 실제로 만들어지는지 확인 (선택)</summary><div class="inner"><div class="codewrap"><div class="cap"><span>스냅샷 시험</span><span></span></div><button class="copy" type="button">복사</button><pre class="code" data-run="B4"><code>vmrun &lt;&lt;'VMEOF'
+sed -i 's/^SLOW_MS=.*/SLOW_MS=1/' /etc/aoai-probe.env          # 일부러 '느림' 으로 판정
+rm -f /tmp/.aoai_snap; systemctl start aoai-probe.service; sleep 14
+ls -l /var/log/aoai-probe/ | tail -2
+f=$(ls -t /var/log/aoai-probe/snap-*.txt | head -1); echo "lines: $(wc -l &lt; $f)  sections: $(grep -c '^== ' $f)"
+journalctl -t aoai-snap --since "-1 min" -o cat --no-pager | cut -c1-240
+sed -i 's/^SLOW_MS=.*/SLOW_MS=8000/' /etc/aoai-probe.env         # 원래대로
+VMEOF</code></pre></div><div class="expect"><div class="lbl">예상 결과</div><pre>-rw-r--r--. 1 root root 8628 …  snap-20261023T114408Z.txt
+lines: 79  sections: 10
+{"event":"aoai_snapshot","file":"snap-….txt","load1":"2.57","runq":0,"iowait_pct":0,"est443":8,"tcp_retrans_total":8}</pre></div></div></details></div><div class="step" id="b5"><h3><span class="badge">B5 · R2</span><span>AOAI 메트릭 — StatusCode 값 확인</span></h3><p class="meta">B3 시작 후 5분 이상 지난 뒤 실행 · 메트릭은 약 7~10분 지연</p><p>AOAI 메트릭 <code>AzureOpenAIRequests</code> 를 <code>StatusCode</code> 로 나눠 보면 어떤 상태 코드가 실제로 찍히는지 알 수 있습니다. R8 의 499 알림을 만들기 전에 값(문자열 ‘499’)을 확인하는 용도입니다.</p><div class="codewrap"><div class="cap"><span>22장 R2 스니펫 그대로</span><span></span></div><button class="copy" type="button">복사</button><pre class="code" data-run="B5"><code><span class="c"># StatusCode 값(200/429/499…) 확인</span>
+az monitor metrics list \
+  --resource $AOAI_ID \
+  --metrics AzureOpenAIRequests \
+  --dimension StatusCode \
+  --aggregation Total \
+  --interval 1h --offset 1d -o table</code></pre></div><div class="expect"><div class="lbl">예상 결과 (최근 24시간이 시간 단위로 나오며, 앱이 호출한 시간대에만 값이 보입니다)</div><pre>Timestamp             Name                   Statuscode    Total
+--------------------  ---------------------  ------------  -------
+2026-10-23T09:25:00Z  Azure OpenAI Requests  200           0.0
+…                                                                     (앱을 켜기 전 시간대는 0)
+2026-10-23T10:25:00Z  Azure OpenAI Requests  200           72.0
+2026-10-23T10:25:00Z  Azure OpenAI Requests  499           13.0</pre></div><div class="callout"><div class="lbl">실측으로 확인한 것</div><ul><li>StatusCode 값은 <code>200</code> · <code>499</code> 처럼 <b>숫자 문자열</b>입니다. 앱이 일부러 1초 timeout 으로 끊은 호출이 <b>499</b> 로 집계되었습니다.</li><li>없는 배포 이름(404)은 AOAI 지표·로그에 <b>나타나지 않습니다</b> — 앱 로그에서만 보입니다.</li><li>이 환경(비스트리밍 · Global Standard)에서 <code>AzureOpenAITTLTInMS</code>(응답 완료 시간)·토큰 수 지표에는 값이 있었고, <code>TimeToResponse</code> · <code>NormalizedTimeBetweenTokens</code> 계열은 값이 없었습니다.</li></ul></div></div><div class="step" id="b6"><h3><span class="badge">B6 · R8</span><span>알림 4종 + 수신 그룹</span></h3><p class="meta">소요 약 2분 · 알림 메일은 A1 의 <code>MAIL</code> 로 갑니다</p><p>지연이 난 순간을 놓치지 않도록 <b>메트릭 알림 2개</b>(AOAI 499 · 응답 완료 시간, 1분 평가)와 <b>로그 알림 2개</b>(앱 client_timeout · probe 지연, 5분 평가)를 만듭니다. 로그 알림은 수집 지연만큼 늦게 울리므로 AOAI 쪽은 메트릭 알림이 빠릅니다.</p><div class="codewrap"><div class="cap"><span>22장 R8 스니펫 그대로 (RG · MAIL · AOAI_ID · LAW 는 A1·A4 에서 정한 값)</span><span></span></div><button class="copy" type="button">복사</button><pre class="code" data-run="B6"><code><span class="c"># 수신 그룹(이메일) 생성 후 ID 조회</span>
+az monitor action-group create -g $RG -n ag-aoai-latency --short-name aoailat \
+  --action email owner $MAIL
+AG=$(az monitor action-group show -g $RG -n ag-aoai-latency --query id -o tsv)
+Q1="AppTraces | where Message has 'aoai_call' and Message has 'client_timeout'"
+Q2="Syslog | where ProcessName == 'aoai-probe' | extend p = parse_json(SyslogMessage)
+    | where toint(p.rc) != 0 or toint(p.total_ms) &gt;= 8000"
+az monitor metrics alert create -g $RG -n aoai-499 --scopes $AOAI_ID \
+  --condition "total AzureOpenAIRequests &gt; 0 where StatusCode includes 499" \
+  --window-size 5m --evaluation-frequency 1m --severity 2 --action $AG
+az monitor metrics alert create -g $RG -n aoai-ttlt-high --scopes $AOAI_ID \
+  --condition "max AzureOpenAITTLTInMS &gt; 20000" \
+  --window-size 5m --evaluation-frequency 1m --severity 3 --action $AG
+az monitor scheduled-query create -g $RG -n app-client-timeout --scopes $LAW \
+  --condition "count 'Q' &gt; 0" --condition-query Q="$Q1" \
+  --window-size 5m --evaluation-frequency 5m --severity 2 --action-groups $AG
+az monitor scheduled-query create -g $RG -n probe-slow --scopes $LAW \
+  --condition "count 'Q' &gt; 0" --condition-query Q="$Q2" \
+  --window-size 5m --evaluation-frequency 5m --severity 3 --action-groups $AG</code></pre></div><div class="codewrap"><div class="cap"><span>발화한 알림 확인 (앱을 켜고 약 10분 뒤)</span><span></span></div><button class="copy" type="button">복사</button><pre class="code" data-run="B6"><code>az rest --method get --url "https://management.azure.com/subscriptions/$SUB/providers/Microsoft.AlertsManagement/alerts?api-version=2019-05-05-preview&amp;targetResourceGroup=$RG" \
+  --query "value[].{rule:properties.essentials.alertRule, state:properties.essentials.monitorCondition, sev:properties.essentials.severity, fired:properties.essentials.startDateTime}" -o table</code></pre></div><div class="expect"><div class="lbl">예상 결과</div><pre>Rule                 State   Sev   Fired
+-------------------  ------  ----  ----------------------------
+…/aoai-499           Fired   Sev2  2026-10-23T11:25:05Z
+…/app-client-timeout Fired   Sev2  2026-10-23T11:28:47Z</pre></div><div class="callout warn"><div class="lbl">알림 메일이 옵니다</div><p>실습 중 timeout 호출이 계속 발생하므로 <code>aoai-499</code> 와 <code>app-client-timeout</code> 이 울리고 <code>MAIL</code> 로 알림이 갑니다. 확인이 끝나면 D 단계에서 리소스 그룹을 삭제하세요(또는 <code>az monitor metrics alert update --enabled false</code>).</p></div></div><div class="step" id="b7"><h3><span class="badge">B7 · R6</span><span>네트워크 경로 로그 — Connection Monitor · VNet flow log · (선택) Azure Firewall</span></h3><p class="meta">소요 약 5분 (Firewall 포함 시 약 25분) · 22장에서는 ‘조건부 3단계’</p><p>probe(VM 안)가 느리고 probe(VM 밖)가 정상일 때 우선 보는 <b>VM → AOAI 경로</b>의 로그입니다. Connection Monitor 는 VM 에서 AOAI 443 포트로 <b>TCP 연결 시간(RTT)과 실패율</b>을 30초마다 재고, 방화벽 로그는 FQDN 규칙·DNS·SNAT 포트 사용률을 줍니다.</p><div class="codewrap"><div class="cap"><span>② Connection Monitor — VM → AOAI:443 을 30초마다 (22장 R6 스니펫 그대로)</span><span></span></div><button class="copy" type="button">복사</button><pre class="code" data-run="B7"><code>VM_ID=$(az vm show -g $VM_RG -n $VM --query id -o tsv)
+az vm extension set -g $VM_RG --vm-name $VM --name NetworkWatcherAgentLinux \
+  --publisher Microsoft.Azure.NetworkWatcher --enable-auto-upgrade true \
+  --version 1.4 --extension-instance-name AzureNetworkWatcherExtension
+az network watcher connection-monitor create -n cm-vm-to-aoai -l koreacentral \
+  --endpoint-source-name vm --endpoint-source-resource-id $VM_ID \
+  --endpoint-dest-name aoai --endpoint-dest-address $AOAI_HOST \
+  --endpoint-dest-type ExternalAddress --test-group-name tg-aoai \
+  --test-config-name tcp443 --protocol Tcp --tcp-port 443 --frequency 30 \
+  --workspace-ids $LAW</code></pre></div><div class="expect"><div class="lbl">예상 결과</div><pre>{ "name": "AzureNetworkWatcherExtension", "provisioningState": "Succeeded", "typeHandlerVersion": "1.4", … }
+{ "name": "cm-vm-to-aoai", "provisioningState": "Succeeded", … "testConfigurations": [{ "name": "tcp443", "tcpConfiguration": { "port": 443 } … }] }</pre></div><div class="codewrap"><div class="cap"><span>③ (선택) VNet flow log — NSG flow log 는 2025-06-30 이후 신규 생성 불가 (22장 R6 스니펫의 자리 표시자를 실제 ID 로 채움)</span><span></span></div><button class="copy" type="button">복사</button><pre class="code" data-run="B7"><code>az storage account create -n $ST -g $RG -l $LOC --sku Standard_LRS --kind StorageV2 --min-tls-version TLS1_2 --allow-blob-public-access false --tags $TAGS -o none
+VNET_ID=$(az network vnet show -g $RG -n $VNET --query id -o tsv)
+ST_ID=$(az storage account show -g $RG -n $ST --query id -o tsv)
+az network watcher flow-log create -l koreacentral -n vnetfl-agent \
+  --vnet "$VNET_ID" --storage-account "$ST_ID" \
+  --traffic-analytics true --workspace $LAW --interval 10 --retention 30</code></pre></div><div class="expect"><div class="lbl">예상 결과</div><pre>{ "enabled": true, "name": "vnetfl-agent", "provisioningState": "Succeeded",
+  "flowAnalyticsConfiguration": { "networkWatcherFlowAnalyticsConfiguration": { "enabled": true, "trafficAnalyticsInterval": 10 } }, … }</pre></div><div class="callout"><div class="lbl">실측</div><p><code>NetworkWatcherAgentLinux</code> 는 22장 문서의 지원 목록(RHEL 6.10·7·8·9.2)에 없는 <b>RHEL 9.8</b> 에서도 설치되어 측정값이 들어왔습니다(같은 리전 TCP RTT 약 2ms · 실패 0). VNet flow log 는 연결 수·바이트만 기록하고 지연 정보는 없습니다.</p></div><details><summary>(선택) Azure Firewall 진단 설정 — 시간당 과금, 확인 후 즉시 삭제</summary><div class="inner"><p>고객 환경에 Azure Firewall 이 있을 때의 ① 단계입니다. 실습에서는 Basic SKU 를 잠깐 만들어 <b>진단 설정 명령이 유효한지</b>(<code>AZFWApplicationRule</code> · <code>AZFWNetworkRule</code> · <code>AZFWDnsQuery</code> 전용 테이블, 메트릭 별도 설정)를 확인했습니다. VM 트래픽을 방화벽으로 보내는 경로(UDR·규칙)는 구성하지 않았으므로 로그 행은 생기지 않습니다.</p><div class="codewrap"><div class="cap"><span>Firewall 생성 → 진단 설정(22장 R6 ① 스니펫) → 삭제</span><span></span></div><button class="copy" type="button">복사</button><pre class="code" data-run="B7" data-skip="1"><code><span class="c"># 허브 VNet 과 Azure Firewall Basic (약 8분 소요 · 시간당 과금)</span>
+az network vnet create -g $RG -n vnet-lablog-hub -l $LOC --address-prefixes 10.30.0.0/16 \
+  --subnet-name AzureFirewallSubnet --subnet-prefixes 10.30.0.0/26 --tags $TAGS -o none
+az network vnet subnet create -g $RG --vnet-name vnet-lablog-hub -n AzureFirewallManagementSubnet --address-prefixes 10.30.1.0/26 -o none
+az network public-ip create -g $RG -n pip-lablog-fw -l $LOC --sku Standard --allocation-method Static --tags $TAGS -o none
+az network public-ip create -g $RG -n pip-lablog-fwmgmt -l $LOC --sku Standard --allocation-method Static --tags $TAGS -o none
+az network firewall policy create -g $RG -n fwp-lablog -l $LOC --sku Basic --tags $TAGS -o none
+az network firewall create -g $RG -n fw-lablog -l $LOC --sku AZFW_VNet --tier Basic --firewall-policy fwp-lablog \
+  --vnet-name vnet-lablog-hub --conf-name ipconf --public-ip pip-lablog-fw \
+  --m-conf-name mgmtconf --m-public-ip pip-lablog-fwmgmt --tags $TAGS -o none
+FW=$(az network firewall show -g $RG -n fw-lablog --query id -o tsv)
+az monitor diagnostic-settings create -n fw-latency-logs \
+  --resource $FW --workspace $LAW --export-to-resource-specific true \
+  --logs '[{"category":"AZFWApplicationRule","enabled":true},
+           {"category":"AZFWNetworkRule","enabled":true},
+           {"category":"AZFWDnsQuery","enabled":true}]'
+az monitor diagnostic-settings create -n fw-latency-metrics \
+  --resource $FW --workspace $LAW \
+  --metrics '[{"category":"AllMetrics","enabled":true}]'
+az monitor diagnostic-settings list --resource $FW --query "[].{name:name, dest:logAnalyticsDestinationType}" -o table
+<span class="c"># 확인이 끝나면 바로 삭제 (시간당 과금 중지, 약 9분 소요)</span>
+az network firewall delete -g $RG -n fw-lablog
+az network firewall policy delete -g $RG -n fwp-lablog
+az network public-ip delete -g $RG -n pip-lablog-fw
+az network public-ip delete -g $RG -n pip-lablog-fwmgmt
+az network vnet delete -g $RG -n vnet-lablog-hub</code></pre></div><div class="expect"><div class="lbl">예상 결과</div><pre>Name                Dest
+------------------  ----------------
+fw-latency-logs     Dedicated
+fw-latency-metrics  AzureDiagnostics</pre></div></div></details><div class="callout warn"><div class="lbl">Azure Firewall 이 아닌 경우</div><p>타사 NVA 라면 세션 수 · SNAT 풀 사용률 · 연결 실패 로그를 벤더 기준으로 요청해야 합니다. 방화벽 메트릭(예: <code>SNATPortUtilization</code>)은 로그와 <b>별도 진단 설정</b>으로 저장합니다.</p></div></div></section><section id="c"><h2>C · 확인과 분석<small>로그가 실제로 쌓였는지 확인하고, 지연의 원인 구간을 가립니다</small></h2><div class="step" id="c1"><h3><span class="badge">C1</span><span>데이터가 들어왔는지 — 테이블별 건수와 수집 지연</span></h3><p class="meta">B1 설정 후 약 30분 + 앱 호출 몇 분 뒤 (AOAI 로그는 활성화까지 가장 오래 걸립니다)</p><p>먼저 모든 로그가 한 워크스페이스에 들어왔는지, 그리고 <b>발생 시각에서 수집까지 몇 초 걸리는지</b>를 봅니다. 이 지연이 있기 때문에 ‘방금 난 지연’은 로그가 아니라 메트릭 알림으로 잡아야 합니다.</p><div class="codewrap nocap"><button class="copy" type="button">복사</button><pre class="code" data-run="C1"><code>kq '
+union isfuzzy=true withsource=T Heartbeat, Perf, Syslog, AppDependencies, AppTraces, AzureMetrics, AzureDiagnostics
+| where TimeGenerated &gt; ago(1h)
+| extend lag_s = datetime_diff("second", ingestion_time(), TimeGenerated)
+| summarize rows = count(), avg_lag_s = round(avg(lag_s), 0), max_lag_s = max(lag_s) by T
+| order by T asc
+'</code></pre></div><div class="expect"><div class="lbl">예상 결과</div><pre>T                 Avg_lag_s    Max_lag_s    Rows
+----------------  -----------  -----------  ------
+AppDependencies   11           174          146
+AppTraces         7            163          143
+AzureDiagnostics  85           279          41       ← AOAI 로그 (RequestResponse · Audit)
+AzureMetrics      450          590          694      ← AOAI 메트릭 (AllMetrics)
+Heartbeat         17           168          28
+Perf              113          239          960
+Syslog            94           237          53</pre></div><div class="callout"><div class="lbl">읽는 법</div><p>앱 로그(App Insights)는 약 10초, VM 로그(Perf·Syslog)는 약 2분, AOAI 요청 로그는 <b>활성화된 뒤</b> 평균 1~2분, AOAI 메트릭은 7~10분 뒤에 보입니다(최대값은 처음 몇 분의 일괄 수집분이 올립니다). AzureDiagnostics 행이 아직 없다면 B1 설정 후 30분이 지났는지 확인하세요. Heartbeat 가 계속 들어오면 에이전트가 정상입니다.</p></div></div><div class="step" id="c2"><h3><span class="badge">C2</span><span>요청 한 건씩 대조 — 앱이 잰 시간 vs AOAI 가 잰 시간</span></h3><p class="meta">가이드의 핵심 분석 · 앱 로그(R3)와 AOAI 로그(R1)를 요청 ID 로 조인</p><p>앱 로그의 <code>apim_request_id</code>(응답 헤더 <code>apim-request-id</code>)가 AOAI 로그의 <code>CorrelationId</code> 와 <b>같습니다</b>(실측 확인). 그래서 요청 단위로 <b>앱 시간 − AOAI 시간 = 앱↔AOAI 사이(네트워크·클라이언트)에서 쓴 시간</b>을 구할 수 있습니다.</p><div class="codewrap nocap"><button class="copy" type="button">복사</button><pre class="code" data-run="C2"><code>kq '
+let app = AppTraces
+    | where TimeGenerated &gt; ago(1d) and Message has "aoai_call"
+    | extend r = parse_json(Message)
+    | project t = TimeGenerated, apim = tostring(r.apim_request_id),
+              outcome = tostring(r.outcome), app_ms = toint(r.total_ms);
+AzureDiagnostics
+| where TimeGenerated &gt; ago(1d) and Category == "RequestResponse"
+| project CorrelationId, status = ResultSignature, aoai_ms = DurationMs
+| join kind=inner app on $left.CorrelationId == $right.apim
+| project t, outcome, status, app_ms, aoai_ms, gap_ms = app_ms - aoai_ms
+| order by gap_ms desc
+| take 50
+'</code></pre></div><div class="expect"><div class="lbl">예상 결과</div><pre>t                     outcome  status  app_ms  aoai_ms  gap_ms
+--------------------  -------  ------  ------  -------  ------
+2026-10-23T13:19:18Z  ok       200     7449    7217     232
+2026-10-23T13:22:12Z  ok       200     905     790      115
+2026-10-23T13:25:18Z  ok       200     6449    6349     100
+2026-10-23T13:21:48Z  ok       200     6719    6623     96
+…
+(같은 리전에서 gap 은 대부분 70~130ms. 토큰 수는 앱 값과 AOAI 값이 정확히 일치했습니다)</pre></div><div class="callout warn"><div class="lbl">timeout 호출은 요청 ID 로 조인되지 않습니다</div><p>앱이 응답을 받기 전에 끊으면(client_timeout) 응답 헤더가 없어 <code>apim_request_id</code> 가 비어 있습니다. 이 경우에는 <b>시각 + 처리 시간</b>으로 맞춥니다 — 앱 <code>total_ms≈1027</code>(timeout 1.0초) ↔ AOAI <code>ResultSignature=499 · DurationMs≈1062</code>. AOAI 쪽 499 행은 <code>responseLength=0</code> · <code>completionTokens=0</code> 입니다.</p></div><div class="codewrap"><div class="cap"><span>499 행 확인</span><span></span></div><button class="copy" type="button">복사</button><pre class="code" data-run="C2"><code>kq '
+AzureDiagnostics
+| where TimeGenerated &gt; ago(1h) and Category == "RequestResponse" and ResultSignature == "499"
+| extend p = parse_json(properties_s)
+| project TimeGenerated, ResultSignature, DurationMs, CallerIPAddress,
+          responseLength = toint(p.responseLength), completionTokens = toint(p.completionTokens), deployment = tostring(p.modelDeploymentName)
+| order by TimeGenerated desc
+| take 5
+'</code></pre></div><div class="expect"><div class="lbl">예상 결과</div><pre>TimeGenerated         ResultSignature  DurationMs  CallerIPAddress  responseLength  completionTokens  deployment
+--------------------  ---------------  ----------  ---------------  --------------  ----------------  ----------
+2026-10-23T11:28:42Z  499              1062        20.200.208.**    0               0                 gpt41mini</pre></div><div class="callout"><div class="lbl">호출자 IP</div><p><code>CallerIPAddress</code> 는 마지막 자리가 가려져(<code>20.200.208.**</code>) 표시됩니다. VM 의 <b>송신 공용 IP</b>(방화벽·NAT 를 거치면 그 장치의 IP)를 확인하는 데 씁니다.</p></div></div><div class="step" id="c3"><h3><span class="badge">C3</span><span>1분·5분 단위로 보기 — 정각·30분 패턴 찾기</span></h3><p class="meta">운영에서는 ‘일주일 이상’ 겹쳐 봅니다</p><p>실제 장애 분석에서는 개별 요청보다 <b>시간 패턴</b>이 중요합니다. 앱(App Insights)과 AOAI 를 1분 단위로 나란히 놓고, 8초 이상 느린 분만 뽑습니다.</p><div class="codewrap"><div class="cap"><span>앱 ↔ AOAI — 1분 단위, 8초 이상 느린 분만</span><span></span></div><button class="copy" type="button">복사</button><pre class="code" data-run="C3"><code>kq '
+let app = AppDependencies
+    | where TimeGenerated &gt; ago(3d) and Target has "openai.azure.com"
+    | summarize app_calls = sum(ItemCount),
+                app_failed = sumif(ItemCount, Success == false),
+                app_p95_ms = percentile(DurationMs, 95)
+      by t = bin(TimeGenerated, 1m);
+let aoai = AzureDiagnostics
+    | where TimeGenerated &gt; ago(3d)
+    | where ResourceProvider == "MICROSOFT.COGNITIVESERVICES"
+    | where Category == "RequestResponse"
+    | summarize aoai_calls = count(),
+                aoai_p95_ms = percentile(DurationMs, 95),
+                c499 = countif(ResultSignature == "499")
+      by t = bin(TimeGenerated, 1m);
+app
+| join kind=fullouter aoai on t
+| project t = coalesce(t, t1), app_calls, app_failed, app_p95_ms,
+          aoai_calls, aoai_p95_ms, c499
+| where app_p95_ms &gt; 8000 or aoai_p95_ms &gt; 8000
+| order by t asc
+'</code></pre></div><div class="expect"><div class="lbl">예상 결과 (AOAI 로그가 활성화되기 전 시간대는 앱 쪽 값만 보입니다)</div><pre>t                     app_calls  app_failed  app_p95_ms  aoai_calls  aoai_p95_ms  c499
+--------------------  ---------  ----------  ----------  ----------  -----------  ----
+2026-10-23T13:10:00Z  5          0           8031        (없음)      (없음)       (없음)   ← 아직 AOAI 로그가 활성화되기 전
+2026-10-23T13:16:00Z  4          2           8014        (없음)      (없음)       (없음)
+2026-10-23T13:26:00Z  4          0           8355        5           8271         0</pre></div><div class="codewrap"><div class="cap"><span>AOAI 로그만으로 — 출력 토큰당 처리 시간 (토큰당 시간이 일정한데 총 시간만 늘면 출력 길이 때문)</span><span></span></div><button class="copy" type="button">복사</button><pre class="code" data-run="C3"><code>kq '
+AzureDiagnostics
+| where TimeGenerated &gt; ago(7d)
+| where ResourceProvider == "MICROSOFT.COGNITIVESERVICES"
+| where Category == "RequestResponse"
+| extend p = parse_json(properties_s)
+| summarize calls = count(), p95_ms = percentile(DurationMs, 95),
+            out_tokens = sum(toint(p.completionTokens)),
+            ms_per_out_token = sum(DurationMs) / sum(toint(p.completionTokens))
+  by bin(TimeGenerated, 5m)
+| order by TimeGenerated asc
+'</code></pre></div><div class="expect"><div class="lbl">예상 결과</div><pre>TimeGenerated         calls  p95_ms  out_tokens  ms_per_out_token
+--------------------  -----  ------  ----------  ----------------
+2026-10-23T13:15:00Z  5      7217    1431        11
+2026-10-23T13:20:00Z  23     6623    2723        16
+2026-10-23T13:25:00Z  14     8271    2112        15</pre></div></div><div class="step" id="c4"><h3><span class="badge">C4</span><span>VM 쪽 — probe · cron · 성능 카운터</span></h3><p class="meta">정각·30분에 VM 에서 무슨 일이 도는지</p><p>probe 의 5분 요약, 정각·30분에 실행된 cron 작업, 에이전트가 수집 중인 성능 카운터를 봅니다.</p><div class="codewrap"><div class="cap"><span>probe — 5분 단위 (VM 안, AOAI · 로컬 앱 URL)</span><span></span></div><button class="copy" type="button">복사</button><pre class="code" data-run="C4"><code>kq '
+Syslog
+| where TimeGenerated &gt; ago(7d) and ProcessName == "aoai-probe"
+| extend p = parse_json(SyslogMessage)
+| summarize runs = count(), p95_ms = percentile(toint(p.total_ms), 95),
+            max_tcp_ms = max(toint(p.tcp_ms)),
+            max_wait_ms = max(toint(p.wait_ms)),
+            fails = countif(toint(p.rc) != 0)
+  by bin(TimeGenerated, 5m), role = tostring(p.role),
+     target = tostring(p.target)
+| order by TimeGenerated asc
+'</code></pre></div><div class="expect"><div class="lbl">예상 결과</div><pre>TimeGenerated         role       target            runs  p95_ms  max_tcp_ms  max_wait_ms  fails
+--------------------  ---------  ----------------  ----  ------  ----------  -----------  -----
+2026-10-23T11:15:00Z  vm-inside  aoai              6     1120    6           643          0
+2026-10-23T11:15:00Z  vm-inside  app:11202/health  6     3       0           3            0</pre></div><div class="codewrap"><div class="cap"><span>cron — 매시 정각·30분(분 0·1·30·31)에 실행된 작업</span><span></span></div><button class="copy" type="button">복사</button><pre class="code" data-run="C4"><code>kq '
+Syslog
+| where TimeGenerated &gt; ago(7d) and Facility == "cron"
+| where SyslogMessage has "CMD"
+| extend minute_of_hour = datetime_part("minute", TimeGenerated)
+| where minute_of_hour in (0, 1, 30, 31)
+| summarize runs = count()
+  by ProcessName, cmd = substring(SyslogMessage, 0, 100)
+| order by runs desc
+'</code></pre></div><div class="expect"><div class="lbl">예상 결과</div><pre>ProcessName  cmd                                        runs
+-----------  -----------------------------------------  ----
+CROND        (root) CMD (run-parts /etc/cron.hourly)    1</pre></div><div class="callout"><div class="lbl">cron 결과가 비어 있다면</div><p>RHEL 의 <code>cron.hourly</code> 는 매시 <b>01분</b>에 돕니다. 첫 정각이 지난 뒤(약 1시간 후) 다시 실행하세요.</p></div><div class="codewrap"><div class="cap"><span>성능 카운터 — 12종이 모두 들어오는지</span><span></span></div><button class="copy" type="button">복사</button><pre class="code" data-run="C4"><code>kq '
+Perf
+| where TimeGenerated &gt; ago(30m) and Computer has "vm-lablog-rhel"
+| summarize samples = count(), last_seen = max(TimeGenerated)
+  by ObjectName, CounterName
+'</code></pre></div><div class="expect"><div class="lbl">예상 결과</div><pre>CounterName              ObjectName    samples
+-----------------------  ------------  -------
+% Processor Time         Processor     15
+% IO Wait Time           Processor     15
+% Used Memory            Memory        5
+Available MBytes Memory  Memory        5
+% Used Swap Space        Memory        5
+Disk Transfers/sec       Logical Disk  45
+% Free Space             Logical Disk  65
+Total Bytes Received     Network       10
+Total Bytes Transmitted  Network       10
+Total Rx Errors          Network       10
+Total Tx Errors          Network       10
+Load1                    System        5</pre></div></div><div class="step" id="c5"><h3><span class="badge">C5</span><span>적용 직후 확인 체크리스트 9가지 — 이번 실습 결과</span></h3><p class="meta">22장 18쪽의 체크리스트를 실제로 돌려 본 결과</p><table><thead><tr><th>#</th><th>항목</th><th>확인 방법</th><th>기대</th><th class='res'>결과</th><th>실측 메모</th></tr></thead><tbody><tr><td>1</td><td><b>진단 설정 저장</b></td><td><code>az monitor diagnostic-settings list</code></td><td>RequestResponse · Audit · AllMetrics 설정이 보임</td><td class="ok">✔</td><td>B1</td></tr><tr><td>2</td><td><b>AOAI 로그 도착</b></td><td>C1 · aoai_requestresponse_check</td><td>약 20분 내 행이 보이고 properties_s 에 본문이 없음</td><td class="ok">✔</td><td>properties_s: 토큰 수·길이·배포 이름만</td></tr><tr><td>3</td><td><b>요청 ID 대조</b></td><td>C2</td><td>apim_request_id = CorrelationId</td><td class="ok">✔</td><td>x-request-id 는 불일치</td></tr><tr><td>4</td><td><b>호출 로그 1줄</b></td><td>B3 의 journalctl</td><td>ok / client_timeout / error + 토큰 수</td><td class="ok">✔</td><td>ok · timeout · 404 모두 확인</td></tr><tr><td>5</td><td><b>App Insights 수집</b></td><td><code>AppDependencies</code> 의 Target 필터</td><td>시도마다 행 + aoai_call 로그 (수 초~수십 초 내)</td><td class="ok">✔</td><td>200 · 0(timeout) · 404</td></tr><tr><td>6</td><td><b>AMA 연결</b></td><td>ama_heartbeat · ama_perf_counters</td><td>설치 후 10분 내 Heartbeat · Perf · cron 행</td><td class="ok">✔</td><td>카운터 12종 · cron · local5</td></tr><tr><td>7</td><td><b>시계 동기화</b></td><td><code>timedatectl</code></td><td>System clock synchronized: yes</td><td class="ok">✔</td><td>RHEL 9.8 기본값</td></tr><tr><td>8</td><td><b>probe 동작</b></td><td>systemctl list-timers · probe_by_5min</td><td>1분마다 JSON 줄, rc=0</td><td class="ok">✔</td><td>관리 ID 인증 · wait_ms 정상</td></tr><tr><td>9</td><td><b>알림 시험</b></td><td>B6 의 알림 조회</td><td>알림 발화</td><td class="ok">✔</td><td>aoai-499 · app-client-timeout</td></tr></tbody></table><div class="callout"><div class="lbl">읽는 법 — 신호의 조합으로 원인 구간을 가립니다</div><table><thead><tr><th>관측되는 패턴</th><th>해석</th><th>다음 행동</th></tr></thead><tbody><tr><td>앱만 길고 AOAI 처리 시간은 정상(gap 이 큼)</td><td>AOAI 밖 — 앱 대기 · 네트워크 · 큐</td><td>inflight · 작업 큐 계측, probe(VM 안) 확인</td></tr><tr><td>앱 지연이 정각·30분 cron·CPU 상승과 겹침</td><td>VM 자원 · 스케줄 작업 경합</td><td>Syslog(cron) · 스냅샷으로 작업 식별 → 분산</td></tr><tr><td>앱·probe(VM 안)만 느리고 probe(VM 밖)는 정상</td><td>VM → AOAI 경로(방화벽 · DNS · SNAT)</td><td>dns_ms · tcp_ms → R6 SNAT 사용률 · Connection Monitor</td></tr><tr><td>앱 · AOAI · probe 모두 느림</td><td>AOAI 서비스 · 공유 용량</td><td>apim_request_id · 시각 · 메트릭을 첨부해 Support Case</td></tr><tr><td>AOAI 에 499, 처리 시간이 앱 timeout 과 비슷</td><td>앱 timeout 이 먼저 끊음(긴 출력 · 큰 입력)</td><td>timeout · max_tokens · Streaming 조정, 재시도 중복 확인</td></tr></tbody></table></div></div></section><section id="d"><h2>D · 정리</h2><div class="step" id="d1"><h3><span class="badge">D</span><span>정리 — 비용 중지 또는 전체 삭제</span></h3><p class="meta">실습이 끝나면 꼭 실행하세요</p><div class="codewrap"><div class="cap"><span>정리 (A 또는 B 중 하나)</span><span></span></div><button class="copy" type="button">복사</button><pre class="code" data-run="D" data-skip="1"><code><span class="c"># (A) 잠시 멈추기 — VM 컴퓨팅 과금 중지 (디스크·공용 IP 요금은 남음). 다시 켤 때: az vm start -g $RG -n $VM</span>
+az vm deallocate -g $RG -n $VM
+
+<span class="c"># (B) 전부 삭제</span>
+<span class="c">#   ① Connection Monitor · flow log 는 리소스 그룹 밖(NetworkWatcherRG)에 만들어져 그룹 삭제로 지워지지 않으니 먼저 지웁니다</span>
+az network watcher connection-monitor delete -l $LOC -n cm-vm-to-aoai
+az network watcher flow-log delete -l $LOC -n vnetfl-agent
+<span class="c">#   ② 리소스 그룹째 삭제 (알림 · 수집 규칙 · AOAI · VM · 저장소 모두 포함)</span>
+az group delete -n $RG --yes --no-wait
+rm -f id_lab id_lab.pub lablog.env                       # 임시 SSH 키와 변수 파일</code></pre></div><div class="callout"><div class="lbl">소프트 삭제</div><p>AOAI 계정과 Log Analytics 워크스페이스는 삭제 후에도 일정 기간 ‘소프트 삭제’ 상태로 이름이 남습니다. 이 실습은 이름에 <b>무작위 접미사</b>(<code>$SFX</code>)를 붙여서 다시 실행해도 충돌하지 않습니다. 같은 이름을 꼭 다시 쓰려면 <code>az cognitiveservices account purge</code> 로 AOAI 를 영구 삭제하세요.</p></div></div></section><section id="x"><h2>부록<small>검증 기록 · 수정 내역 · 문제 해결</small></h2><div class="step" id="x1"><h3><span class="badge">부록 A</span><span>실제 환경에서 확인한 사실</span></h3><p class="meta">2026-10-23 · Korea Central · RHEL 9.8 · Azure CLI 2.86 · openai 3.37 · azure-monitor-opentelemetry 1.8.11 · 2회 검증(단계별 적용 → 이 문서의 코드 블록을 새 리소스 그룹에서 그대로 재실행)</p><table><thead><tr><th>항목</th><th class='res'>결과</th><th>실측 내용</th></tr></thead><tbody><tr><td><b>R1 진단 설정</b></td><td class="ok">✔</td><td>설정 후 약 20~26분 뒤부터 요청이 기록됨(그 전 호출은 기록되지 않음, 2회 반복 확인) · 이후 지연 평균 약 2분. <code>properties_s</code>(JSON)에 promptTokens · completionTokens · streamType · 배포/모델 이름 · 요청/응답 길이, <b>본문 없음</b>, 호출자 IP 끝자리 마스킹</td></tr><tr><td><b>요청 ID 대조</b></td><td class="ok">✔</td><td><code>apim-request-id</code> = <code>CorrelationId</code>. <code>x-request-id</code> 는 불일치, <code>x-ms-client-request-id</code> 는 AOAI 로그에 남지 않음</td></tr><tr><td><b>499 의 의미</b></td><td class="ok">✔</td><td>클라이언트 read timeout 1.0초 → AOAI <code>499</code>(DurationMs≈1.06초, 응답 길이 0). 앱은 <code>client_timeout</code>(1.03초)</td></tr><tr><td><b>404 (없는 배포)</b></td><td class="ok">✔</td><td>앱 dependency 404 로는 보이지만 AOAI 지표·로그에는 없음</td></tr><tr><td><b>R2 메트릭</b></td><td class="ok">✔</td><td>StatusCode 200 · 499 (숫자 문자열). <code>AzureOpenAITTLTInMS</code> · 토큰 지표에 값 있음, 신형 <code>TimeToLastByte</code> · <code>TimeToResponse</code> 계열은 이 환경에서 값 없음. AzureMetrics 지연 7~10분</td></tr><tr><td><b>R3 호출 로그</b></td><td class="ok">✔</td><td>ok · client_timeout · error 기록, 응답 헤더 3종(<code>x-request-id</code> · <code>apim-request-id</code> · <code>x-ms-region</code>) 확인</td></tr><tr><td><b>R4 App Insights</b></td><td class="ok">✔</td><td>dependency 200 · ResultCode 0(timeout, Success=false) · 404, <code>httpx2.ReadTimeout</code> 예외, 지연 약 10초. 부가 dependency(<code>settings.sdk.monitor.azure.com</code> · <code>169.254.169.254</code>)가 섞이므로 Target 필터 필요. <b>Python 3.10+ 필요</b>(RHEL 9 기본 3.9)</td></tr><tr><td><b>앱 vs AOAI 시간</b></td><td class="ok">✔</td><td>같은 리전에서 앱 시간 − AOAI 시간 = 72~134ms(평균 94ms), 토큰 수 일치</td></tr><tr><td><b>R5 에이전트</b></td><td class="ok">✔</td><td>AMA 1.45 · 성능 카운터 12종 · cron / local5 syslog · Heartbeat. 지연: Perf·Syslog 약 2분, Heartbeat 약 5초</td></tr><tr><td><b>R6 네트워크</b></td><td class="part">△</td><td>Connection Monitor(RHEL 9.8)와 VNet flow log 는 정상. Azure Firewall 은 진단 설정(AZFW* 전용 테이블 · SNAT 지표)만 확인 — <b>방화벽을 거치는 트래픽은 미검증</b></td></tr><tr><td><b>R7 probe</b></td><td class="ok">✔</td><td>관리 ID 인증 · 1분 타이머 · syslog 수집 정상. 실습 중 2건 수정(<code>--http1.1</code>, <code>systemd-run</code>)</td></tr><tr><td><b>R8 알림</b></td><td class="ok">✔</td><td><code>aoai-499</code>(메트릭) · <code>app-client-timeout</code>(로그) 발화 확인. 수신 메일 도착은 수신자가 확인</td></tr><tr><td><b>분석 쿼리</b></td><td class="ok">✔</td><td>queries.kql 28개를 실제 워크스페이스에서 모두 오류 없이 실행 (데이터가 없는 방화벽·가용성 테스트 쿼리는 0행)</td></tr><tr><td><b>수집량</b></td><td class="ok">✔</td><td>VM 1대 + 분당 약 5회 호출 기준 시간당 약 1MB (Log Analytics 월 5GB 무료 범위 안)</td></tr></tbody></table></div><div class="step" id="x2"><h3><span class="badge">부록 B</span><span>실습에서 22장 가이드에 반영한 수정</span></h3><ul><li><b>토큰 수는 AOAI 진단 로그에 있습니다</b> — 이전 안내(‘요청별 토큰 수는 로그에 없음’)를 바로잡고, <code>properties_s</code> 에서 꺼내는 쿼리를 추가했습니다.</li><li><b>요청 ID 대조 키</b>는 <code>apim_request_id</code> = <code>CorrelationId</code> 입니다(<code>aoai_requestid_match</code> 쿼리 수정, 요청 단위 조인 쿼리 <code>app_vs_aoai_by_request</code> 추가).</li><li><b>probe</b>: <code>curl --http1.1</code> 추가(wait_ms 정상화), 스냅샷을 <code>systemd-run</code> 으로 실행(중도 종료 방지).</li><li><b>R4</b>: RHEL 9 의 기본 Python 3.9 → 3.10 이상(python3.12) 필요 명시, <code>systemctl edit</code> 대신 쓸 수 있는 비대화식 드롭인 방법 추가.</li><li>본문 미기록 · 호출자 IP 마스킹 · 수집 지연(앱 10초 · VM 2분 · AOAI 최대 20분)을 실측값으로 교체. 신규 쿼리 <code>aoai_tokens_by_5min</code> · <code>billed_by_table</code>.</li></ul></div><div class="step" id="x3"><h3><span class="badge">부록 C</span><span>문제 해결</span></h3><table><thead><tr><th>증상</th><th>확인 · 해결</th></tr></thead><tbody><tr><td><code>vmrun</code> 이 ‘Conflict / another operation in progress’</td><td>이전 run-command 가 끝나기를 기다린 뒤 다시 실행합니다.</td></tr><tr><td>AOAI 로그(AzureDiagnostics)가 안 보임</td><td>설정 후 20분 이상 기다립니다. <code>journalctl -u report-agent</code> 로 앱이 호출 중인지, B1 의 진단 설정이 켜져 있는지 확인합니다.</td></tr><tr><td>AppDependencies 에 AOAI 호출이 없음</td><td><code>OTEL_TRACES_SAMPLER=always_on</code> · 연결 문자열 · Python 3.10+ · 아웃바운드 443(<code>*.in.applicationinsights.azure.com</code>)을 확인합니다. <code>Target has "openai.azure.com"</code> 로 필터하세요.</td></tr><tr><td>Perf · Syslog 가 없음</td><td><code>az vm extension list -g $RG --vm-name $VM -o table</code> 로 AzureMonitorLinuxAgent 상태, DCR 연결(B2), <code>systemctl is-active rsyslog</code> 를 확인합니다.</td></tr><tr><td>모델 배포가 실패 / 쿼터 부족</td><td>다른 리전(예: swedencentral)이나 모델로 바꾸고 <code>LOC</code> · 모델 이름을 수정합니다. 추론 모델은 <code>max_completion_tokens</code> 로 코드를 바꿔야 합니다.</td></tr><tr><td>알림 메일이 안 옴</td><td>스팸함 확인, 액션 그룹 수신자(<code>az monitor action-group show -g $RG -n ag-aoai-latency</code>)를 확인합니다.</td></tr></tbody></table></div><div class="step" id="x4"><h3><span class="badge">부록 D</span><span>운영 환경에 적용할 때 달라지는 점</span></h3><ul><li><b>키 대신 관리 ID</b>: 이 실습의 데모 앱은 22장 예시대로 키를 쓰지만, 운영 앱은 관리 ID(<code>azure_ad_token_provider</code>)를 권장합니다. probe 는 이미 관리 ID 입니다.</li><li><b>기존 진단 설정</b>: 진단 설정은 리소스당 최대 5개이고 Azure Policy 가 이미 만들었을 수 있습니다 — B1 전에 확인하세요.</li><li><b>방화벽 허용 목록</b>: VM 아웃바운드 443 에 Application Insights · Azure Monitor Agent · 워크스페이스 FQDN 을 허용해야 합니다(22장 5쪽).</li><li><b>워크스페이스 통일 · 시간 동기화(NTP)</b>: 앱·AOAI·VM 로그를 같은 워크스페이스에, 시각은 UTC 기준으로 비교합니다. 일일 상한(daily cap)은 걸지 않습니다.</li><li><b>앱 언어</b>: Python 이 아니면 22장 부록 A 를 따르되 R3 의 필드 이름은 그대로 유지합니다.</li></ul></div></section></main>
+</div>
+<footer class="foot">이 문서의 명령·코드·쿼리는 22장 가이드의 스니펫과 같은 내용이며, 2026-10-23 실제 Azure 구독의 새 리소스 그룹에서 실행해 검증했습니다. 데모 앱·probe 는 실습용이며 운영 적용 전에 부록 D 를 확인하세요.</footer>
+<script>
+(function () {
+  function fallbackCopy(text) {
+    var ta = document.createElement("textarea");
+    ta.value = text; ta.setAttribute("readonly", ""); ta.style.position = "fixed"; ta.style.opacity = "0";
+    document.body.appendChild(ta); ta.select();
+    var ok = false; try { ok = document.execCommand("copy"); } catch (e) {}
+    document.body.removeChild(ta); return ok;
+  }
+  document.querySelectorAll("button.copy").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      var code = btn.parentElement.querySelector("pre.code code");
+      var text = code ? code.textContent : "";
+      function done(ok) {
+        var old = btn.textContent; btn.textContent = ok ? "복사됨" : "선택 후 Ctrl+C"; if (ok) btn.classList.add("ok");
+        setTimeout(function () { btn.textContent = "복사"; btn.classList.remove("ok"); }, 1400);
+      }
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(function () { done(true); }, function () { done(fallbackCopy(text)); });
+      } else { done(fallbackCopy(text)); }
+    });
+  });
+  var links = Array.prototype.slice.call(document.querySelectorAll("nav.toc a"));
+  var map = {}; links.forEach(function (a) { map[a.getAttribute("href").slice(1)] = a; });
+  var targets = Object.keys(map).map(function (id) { return document.getElementById(id); }).filter(Boolean);
+  if ("IntersectionObserver" in window) {
+    var io = new IntersectionObserver(function (entries) {
+      entries.forEach(function (e) {
+        if (e.isIntersecting) { links.forEach(function (a) { a.classList.remove("on"); }); var a = map[e.target.id]; if (a) a.classList.add("on"); }
+      });
+    }, { rootMargin: "-10% 0px -80% 0px" });
+    targets.forEach(function (t) { io.observe(t); });
+  }
+})();
+</script>
+</body>
+</html>

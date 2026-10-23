@@ -1,0 +1,13 @@
+[Unit]
+Description=report-agent demo (AOAI caller)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+EnvironmentFile=/etc/report-agent/app.env
+ExecStart=/opt/report-agent/venv/bin/python /opt/report-agent/app_demo.py
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
