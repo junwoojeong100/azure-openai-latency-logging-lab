@@ -26,7 +26,7 @@
 # 가이드 다시 만들기 (Python 3 표준 라이브러리만 사용) — 생성된 HTML 을 커밋·push 하면 웹에도 반영됩니다
 python3 generator/build.py
 
-# 문서 검증 — 실제 Azure 리소스(VM 포함)가 새로 만들어지고 비용이 듭니다 (약 2~3시간, $2 이내 예상)
+# 문서 검증 — 실제 Azure 리소스(VM 포함)가 새로 만들어지고 비용이 듭니다 (약 40분 · 선택 Firewall·정리 블록 제외 · $2 이내 예상)
 SUB=<구독 ID> MAIL=<알림 받을 이메일> python3 generator/run_html.py aoai-logging-hands-on-lab.html
 ```
 

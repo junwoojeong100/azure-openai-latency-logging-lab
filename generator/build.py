@@ -25,7 +25,7 @@ hero = """<header class="hero">
 <p class="lead">앱 · VM · Azure OpenAI 세 구간에서 요청 단위 로그를 모으는 22장 가이드(R1~R8)를, 새 리소스 그룹에 실습 환경을 만들어 직접 적용하고 결과를 확인합니다. 모든 코드 블록은 복사해서 그대로 실행할 수 있습니다.</p>
 <div class="chips">
 <span class="chip"><b>검증</b> 2026-10-23 · Korea Central · RHEL 9.8 · gpt-4.1-mini</span>
-<span class="chip"><b>소요</b> 약 2~3시간 (로그 대기 포함)</span>
+<span class="chip"><b>소요</b> 약 1시간 (로그 대기 포함)</span>
 <span class="chip"><b>비용</b> 약 $2 이내 (예상)</span>
 <span class="chip"><b>형식</b> 한 페이지 · bash · 복사 버튼</span>
 <a class="chip" href="#x1"><b>검증 기록</b> 보기 →</a>
