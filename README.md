@@ -6,7 +6,9 @@
 
 ## 바로 보기
 
-[`aoai-logging-hands-on-lab.html`](aoai-logging-hands-on-lab.html) — 한 페이지 실습 가이드(복사 버튼 · 다크/라이트 · 외부 의존 없음). 파일을 내려받아 브라우저로 여세요.
+**https://junwoojeong100.github.io/azure-openai-latency-logging-lab/** — 한 페이지 실습 가이드 (복사 버튼 · 다크/라이트 · 외부 의존 없음)
+
+`main` 에 push 하면 GitHub Actions(`.github/workflows/pages.yml`)가 [`aoai-logging-hands-on-lab.html`](aoai-logging-hands-on-lab.html) 을 GitHub Pages 에 자동 배포합니다.
 
 ## 구성
 
@@ -21,7 +23,7 @@
 ## 사용법
 
 ```bash
-# 가이드 다시 만들기 (Python 3 표준 라이브러리만 사용)
+# 가이드 다시 만들기 (Python 3 표준 라이브러리만 사용) — 생성된 HTML 을 커밋·push 하면 웹에도 반영됩니다
 python3 generator/build.py
 
 # 문서 검증 — 실제 Azure 리소스(VM 포함)가 새로 만들어지고 비용이 듭니다 (약 2~3시간, $2 이내 예상)
