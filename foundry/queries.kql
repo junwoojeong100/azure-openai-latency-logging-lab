@@ -1,0 +1,84 @@
+// Foundry 에이전트 분석 쿼리 — Application Insights(로그) 에서 실행합니다. 에이전트 이름은 azure.yaml 의 이름입니다.
+// 형식: "//## 이름 | 설명" 줄 다음에 쿼리. 꺾쇠(<…>) 는 자리 표시자입니다.
+
+//## ingested_by_role | 최근 30분 — 테이블 · 역할(cloud_RoleName)별 건수 (플랫폼 responsesapi · agentsv2, 컨테이너는 에이전트 이름)
+union requests, dependencies, traces, exceptions
+| where timestamp > ago(30m)
+| summarize rows = count() by itemType, role = cloud_RoleName
+| order by itemType asc, role asc
+
+//## prompt_runs_5min | 프롬프트 에이전트 — 5분 단위 실행 수 · 지연
+dependencies
+| where timestamp > ago(1h)
+| where cloud_RoleName == "responsesapi" and customDimensions["gen_ai.operation.name"] == "invoke_agent"
+| where customDimensions["gen_ai.agent.name"] == "report-prompt-agent"
+| summarize runs = count(), failed = countif(success == false), p50_ms = round(percentile(duration, 50)), p95_ms = round(percentile(duration, 95)), max_ms = round(max(duration)) by bin(timestamp, 5m)
+| order by timestamp desc
+
+//## prompt_overhead | 프롬프트 에이전트 — 실행 시간에서 모델 호출 시간을 뺀 값이 큰 실행 (느린 첫 호출 찾기)
+let spans = dependencies
+    | where timestamp > ago(1h) and cloud_RoleName == "responsesapi" and customDimensions["gen_ai.agent.name"] == "report-prompt-agent";
+spans
+| where customDimensions["gen_ai.operation.name"] == "invoke_agent"
+| project operation_Id, timestamp, run_ms = duration
+| join kind = inner (spans | where customDimensions["gen_ai.operation.name"] == "chat" | project operation_Id, model_ms = duration) on operation_Id
+| extend overhead_ms = run_ms - model_ms
+| top 10 by overhead_ms desc
+| project timestamp, trace_id = operation_Id, run_ms = round(run_ms), model_ms = round(model_ms), overhead_ms = round(overhead_ms)
+
+//## hosted_runs_5min | 호스티드 에이전트 — 5분 단위 실행 수 · cold 수 · 시작 지연을 포함한 총 시간
+requests
+| where timestamp > ago(1h) and cloud_RoleName == "agentsv2" and customDimensions["gen_ai.agent.name"] == "report-maf-agent"
+| extend start_type = tostring(customDimensions["hosted_agent.latency.start_type"]),
+    startup_ms = coalesce(toint(customDimensions["hosted_agent.latency.platform_preprocessing_ms"]), 0) + coalesce(toint(customDimensions["hosted_agent.latency.infra_setup_ms"]), 0) + coalesce(toint(customDimensions["hosted_agent.latency.container_readiness_ms"]), 0)
+| extend total_ms = duration + startup_ms
+| summarize runs = count(), cold = countif(start_type == "cold"), p50_total_ms = round(percentile(total_ms, 50)), p95_total_ms = round(percentile(total_ms, 95)), p50_run_ms = round(percentile(duration, 50)) by bin(timestamp, 5m)
+| order by timestamp desc
+
+//## hosted_cold_vs_warm | 호스티드 에이전트 — cold / warm 별 시작 지연 구성 (평균 ms)
+requests
+| where timestamp > ago(1h) and cloud_RoleName == "agentsv2" and customDimensions["gen_ai.agent.name"] == "report-maf-agent"
+| summarize runs = count(), preprocess_ms = round(avg(coalesce(todouble(customDimensions["hosted_agent.latency.platform_preprocessing_ms"]), 0.0))), infra_ms = round(avg(coalesce(todouble(customDimensions["hosted_agent.latency.infra_setup_ms"]), 0.0))), readiness_ms = round(avg(coalesce(todouble(customDimensions["hosted_agent.latency.container_readiness_ms"]), 0.0))), run_ms = round(avg(duration)) by start_type = tostring(customDimensions["hosted_agent.latency.start_type"])
+
+//## trace_by_id | 클라이언트가 보낸 trace_id(= operation_Id) 한 건의 전체 흐름 — 플랫폼 · 컨테이너 스팬과 로그
+let tid = "<trace_id>";
+union requests, dependencies, traces
+| where operation_Id == tid
+| project timestamp, itemType, role = cloud_RoleName, name = coalesce(name, substring(message, 0, 80)), duration_ms = round(duration), success
+| order by timestamp asc
+
+//## response_lookup | 클라이언트가 받은 응답 ID 로 서버 쪽 기록 찾기 (프롬프트 resp_… · 호스티드 caresp_…)
+let rid = "<response_id>";
+union requests, dependencies
+| where tostring(customDimensions["gen_ai.response.id"]) == rid or tostring(customDimensions["azure.ai.agentserver.response_id"]) == rid
+| project timestamp, itemType, role = cloud_RoleName, name, duration_ms = round(duration), trace_id = operation_Id
+
+//## tokens_by_agent | 에이전트 · 모델별 시간당 토큰 사용량 (플랫폼 chat 스팬)
+dependencies
+| where timestamp > ago(24h) and cloud_RoleName == "responsesapi" and customDimensions["gen_ai.operation.name"] == "chat"
+| summarize calls = count(), input_tokens = sum(toint(customDimensions["gen_ai.usage.input_tokens"])), output_tokens = sum(toint(customDimensions["gen_ai.usage.output_tokens"])), avg_model_ms = round(avg(duration)) by agent = tostring(customDimensions["gen_ai.agent.name"]), model = tostring(customDimensions["gen_ai.response.model"]), bin(timestamp, 1h)
+| order by timestamp desc
+
+//## failed_runs | 실패한 실행 — 실패한 GenAI 스팬과 예외 (호스티드는 requests 가 아니라 dependencies · exceptions 에 실패가 남음)
+union
+    (dependencies | where timestamp > ago(1h) and success == false and isnotempty(customDimensions["gen_ai.operation.name"]) | project timestamp, itemType, role = cloud_RoleName, name, code = resultCode, trace_id = operation_Id),
+    (exceptions | where timestamp > ago(1h) and outerMessage !has "A365" | project timestamp, itemType, role = cloud_RoleName, name = type, code = "", trace_id = operation_Id)
+| order by timestamp desc
+
+//## request_success_flag | 호스티드 에이전트 — 버전별 requests 의 success 값 (실패한 실행도 requests 는 success = true 로 남음)
+requests
+| where timestamp > ago(1h) and cloud_RoleName == "agentsv2" and customDimensions["gen_ai.agent.name"] == "report-maf-agent"
+| summarize requests = count(), success_false = countif(success == false) by version = tostring(customDimensions["agent.version"])
+| order by version asc
+
+//## container_logs | 호스티드 에이전트 컨테이너 로그 (경고 이상)
+traces
+| where timestamp > ago(1h) and cloud_RoleName == "report-maf-agent" and severityLevel >= 2
+| project timestamp, severityLevel, message = substring(message, 0, 200), trace_id = operation_Id
+| order by timestamp desc
+
+//## container_starts | 호스티드 에이전트 컨테이너가 새로 뜬 횟수 (= cold start 횟수)
+traces
+| where timestamp > ago(24h) and cloud_RoleName == "report-maf-agent" and message startswith "AgentServerHost started"
+| summarize starts = count() by bin(timestamp, 1h)
+| order by timestamp desc

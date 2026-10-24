@@ -6,6 +6,8 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 
 SN = os.path.join(HERE, "..", "snippets") + os.sep
 VMF = os.path.join(HERE, "vmfiles") + os.sep
+FD = os.path.join(HERE, "..", "foundry") + os.sep
+EXPECTED = os.path.join(HERE, "foundry_expected") + os.sep
 
 
 def esc(s):
@@ -101,3 +103,24 @@ def step(sid, title, badge=None, meta=None, body="", opt=False):
 def section(sid, title, small, inner):
     sm = f"<small>{esc(small)}</small>" if small else ""
     return f'<section id="{sid}"><h2>{esc(title)}{sm}</h2>{inner}</section>'
+
+
+def fd(path):
+    """foundry/ 폴더의 파일 내용 (끝의 빈 줄 제거)"""
+    return open(FD + path, encoding="utf-8").read().rstrip("\n")
+
+
+def fkql(name):
+    """foundry/queries.kql 에서 '//## 이름 | 설명' 블록의 쿼리 본문(주석 제외)"""
+    txt = open(FD + "queries.kql", encoding="utf-8").read()
+    for b in txt.split("\n//## "):
+        head = b.split("\n")[0]
+        if head.split("|")[0].replace("//## ", "").strip() == name:
+            return "\n".join(l for l in b.split("\n")[1:] if not l.strip().startswith("//")).strip()
+    raise KeyError(name)
+
+
+def expected(name):
+    """실제 실행에서 얻은 출력(foundry_expected/<name>.txt). 없으면 None"""
+    p = EXPECTED + name + ".txt"
+    return open(p, encoding="utf-8").read().rstrip("\n") if os.path.exists(p) else None

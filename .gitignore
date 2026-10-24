@@ -6,3 +6,11 @@ __pycache__/
 id_lab
 id_lab.pub
 lablog.env
+
+# Foundry 실습(foundry/)에서 생기는 로컬 파일
+.azure/
+foundry.env
+calls.jsonl
+last_call.ts
+alerts.txt
+.venv/

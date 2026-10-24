@@ -1,0 +1,66 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/Azure/azure-dev/main/schemas/v1.0/azure.yaml.json
+name: foundry-agents-monitoring
+
+requiredVersions:
+  azd: ">=1.37.1"
+  extensions:
+    azure.ai.agents: ">=1.0.0-beta.22"
+
+infra:
+  provider: microsoft.foundry
+
+hooks:
+  # 프로젝트가 만들어진 직후 Application Insights 를 만들어 연결 → 이후 모든 에이전트의 트레이스가 자동으로 쌓인다
+  postprovision:
+    shell: sh
+    run: scripts/connect-appinsights.sh
+
+services:
+  # Foundry 리소스 + 프로젝트 + 모델 배포 (Application Insights · Log Analytics 연결 포함)
+  ai-project:
+    host: azure.ai.project
+    deployments:
+      - name: gpt-5.4-mini
+        model:
+          format: OpenAI
+          name: gpt-5.4-mini
+          version: "2026-03-17"
+        sku:
+          name: GlobalStandard
+          capacity: 10
+
+  # 프롬프트 에이전트: 코드 없이 모델 + 지시문만 선언
+  report-prompt-agent:
+    host: azure.ai.agent
+    kind: prompt
+    name: report-prompt-agent
+    description: Prompt agent that explains how to write business reports.
+    instructions: You explain how to write business reports. Answer in Korean.
+    model: gpt-5.4-mini
+    project: report-prompt-agent
+    uses:
+      - ai-project
+
+  # 호스티드 에이전트: Microsoft Agent Framework(MAF) 코드를 Foundry 가 실행
+  report-maf-agent:
+    host: azure.ai.agent
+    kind: hosted
+    name: report-maf-agent
+    description: Microsoft Agent Framework agent that explains how to write business reports.
+    language: python
+    project: src/report-maf-agent
+    codeConfiguration:
+      runtime: python_3_13
+      entryPoint: main.py
+    protocols:
+      - protocol: responses
+        version: 2.0.0
+    env:
+      PYTHONNOUSERSITE: "1"
+      AZURE_AI_MODEL_DEPLOYMENT_NAME: ${AZURE_AI_MODEL_DEPLOYMENT_NAME}
+    container:
+      resources:
+        cpu: "0.5"
+        memory: 1Gi
+    uses:
+      - ai-project
