@@ -1,0 +1,3 @@
+SUCCESS: Your application was provisioned and deployed to Azure in 3 minutes 42 seconds.
+  Provisioning: 1 minute 57 seconds
+  Deploying:    1 minute 41 seconds

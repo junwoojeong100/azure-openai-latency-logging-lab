@@ -1,9 +1,12 @@
 {
-  "up_total_s": 228,
+  "up_total_s": 222,
   "provision_s": 117,
-  "deploy_s": 109,
-  "alerts_s": 13,
-  "first_visible_s": 20,
-  "prompt_idle_s": 10,
-  "cold_startup_s": 7
+  "deploy_s": 101,
+  "alerts_s": 15,
+  "first_visible_s": 11,
+  "cold_startup_s": 7,
+  "prompt_outlier_s": 10,
+  "prompt_runs": 28,
+  "prompt_outliers": 1,
+  "alert_wait_s": 327
 }

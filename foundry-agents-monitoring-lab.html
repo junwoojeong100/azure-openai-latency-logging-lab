@@ -1,0 +1,703 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Foundry 에이전트 모니터링 실습 가이드 — 프롬프트 에이전트 · MAF 호스티드 에이전트</title>
+<script>
+  (() => {
+    const param = new URLSearchParams(window.location.search).get("scoutTheme");
+    const theme =
+      param || (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+    document.documentElement.setAttribute("data-theme", theme);
+  })();
+</script>
+<style>
+:root {
+  color-scheme: light;
+  --cp-bg: #f7f4ef;
+  --cp-bg-elevated: #fcfbf8;
+  --cp-surface: #ffffff;
+  --cp-surface-soft: #f5f5f5;
+  --cp-border: #dedede;
+  --cp-border-strong: #919191;
+  --cp-text: #242424;
+  --cp-text-muted: #5c5c5c;
+  --cp-text-soft: #6f6f6f;
+  --cp-accent: #b11f4b;
+  --cp-accent-hover: #9a1a41;
+  --cp-accent-soft: rgba(177, 31, 75, 0.08);
+  --cp-accent-fg: #ffffff;
+  --cp-success: #16a34a;
+  --cp-danger: #dc2626;
+  --cp-warning: #f59e0b;
+  --cp-link: #0078d4;
+  --cp-shadow: 0 18px 48px rgba(0, 0, 0, 0.12);
+  --cp-overlay: rgba(255, 255, 255, 0.8);
+  --cp-panel: rgba(255, 255, 255, 0.86);
+  --cp-panel-strong: rgba(255, 255, 255, 0.96);
+  --cp-sheen: rgba(255, 255, 255, 0.55);
+  --cp-highlight: rgba(177, 31, 75, 0.12);
+}
+html[data-theme="dark"] {
+  color-scheme: dark;
+  --cp-bg: #3d3b3a;
+  --cp-bg-elevated: #343231;
+  --cp-surface: #292929;
+  --cp-surface-soft: #2e2e2e;
+  --cp-border: #474747;
+  --cp-border-strong: #5f5f5f;
+  --cp-text: #dedede;
+  --cp-text-muted: #919191;
+  --cp-text-soft: #b0b0b0;
+  --cp-accent: #fd8ea1;
+  --cp-accent-hover: #fb7b91;
+  --cp-accent-soft: rgba(253, 142, 161, 0.14);
+  --cp-accent-fg: #1a1a1a;
+  --cp-success: #4ade80;
+  --cp-danger: #f87171;
+  --cp-warning: #fbbf24;
+  --cp-link: #4da6ff;
+  --cp-shadow: 0 18px 48px rgba(0, 0, 0, 0.32);
+  --cp-overlay: rgba(41, 41, 41, 0.88);
+  --cp-panel: rgba(41, 41, 41, 0.72);
+  --cp-panel-strong: rgba(41, 41, 41, 0.96);
+  --cp-sheen: rgba(255, 255, 255, 0.04);
+  --cp-highlight: rgba(253, 142, 161, 0.12);
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; scroll-padding-top: 16px; }
+body {
+  margin: 0; background: var(--cp-bg); color: var(--cp-text);
+  font-family: "Segoe UI", Aptos, Calibri, -apple-system, BlinkMacSystemFont, sans-serif;
+  font-size: 15px; line-height: 1.65;
+}
+a { color: var(--cp-link); }
+code, pre, kbd { font-family: Consolas, "Courier New", Courier, monospace; }
+:not(pre) > code {
+  background: var(--cp-surface-soft); border: 1px solid var(--cp-border); border-radius: 6px;
+  padding: 1px 6px; font-size: 0.9em; word-break: break-word;
+}
+.hero { max-width: 1240px; margin: 0 auto; padding: 36px 28px 8px; }
+.eyebrow { color: var(--cp-accent); font-weight: 700; letter-spacing: 0.08em; font-size: 12px; text-transform: uppercase; }
+.hero h1 { margin: 6px 0 10px; font-size: 32px; line-height: 1.25; letter-spacing: -0.01em; }
+.hero p.lead { margin: 0 0 16px; color: var(--cp-text-muted); font-size: 16px; max-width: 860px; }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 8px; }
+.chip {
+  display: inline-flex; align-items: center; gap: 6px; padding: 4px 12px; border-radius: 999px;
+  background: var(--cp-surface); border: 1px solid var(--cp-border); font-size: 13px; color: var(--cp-text-muted);
+}
+.chip b { color: var(--cp-text); font-weight: 600; }
+.layout { max-width: 1240px; margin: 0 auto; padding: 8px 28px 56px; display: grid; grid-template-columns: 250px minmax(0, 1fr); gap: 32px; }
+nav.toc { position: sticky; top: 16px; align-self: start; max-height: calc(100vh - 32px); overflow: auto; padding: 14px 4px 14px 0; font-size: 13.5px; }
+nav.toc .grp { margin: 14px 0 4px; font-size: 11.5px; font-weight: 700; letter-spacing: 0.06em; color: var(--cp-text-soft); text-transform: uppercase; }
+nav.toc a { display: block; padding: 4px 10px; border-left: 2px solid var(--cp-border); color: var(--cp-text-muted); text-decoration: none; }
+nav.toc a:hover { color: var(--cp-text); border-left-color: var(--cp-border-strong); }
+nav.toc a.on { color: var(--cp-accent); border-left-color: var(--cp-accent); background: var(--cp-accent-soft); font-weight: 600; }
+main { min-width: 0; }
+main section { margin: 0 0 44px; }
+main h2 {
+  font-size: 22px; margin: 0 0 14px; padding-bottom: 8px; border-bottom: 2px solid var(--cp-accent);
+  display: flex; align-items: baseline; gap: 10px;
+}
+main h2 small { font-size: 13px; font-weight: 500; color: var(--cp-text-soft); }
+.step {
+  background: var(--cp-surface); border: 1px solid var(--cp-border); border-radius: 16px; padding: 18px 20px 14px; margin: 0 0 18px;
+  box-shadow: 0 0 2px rgba(0,0,0,0.12), 0 1px 2px rgba(0,0,0,0.14);
+}
+.step > h3 { margin: 0 0 4px; font-size: 17.5px; display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.badge {
+  display: inline-block; font-size: 11.5px; font-weight: 700; letter-spacing: 0.04em; padding: 2px 9px; border-radius: 999px;
+  color: var(--cp-accent); background: var(--cp-accent-soft); border: 1px solid var(--cp-highlight);
+}
+.badge.opt { color: var(--cp-text-muted); background: var(--cp-surface-soft); border-color: var(--cp-border); }
+.meta { color: var(--cp-text-soft); font-size: 13px; margin: 0 0 10px; }
+.step p { margin: 8px 0; }
+.step ul, .step ol { margin: 8px 0; padding-left: 22px; }
+.step li { margin: 3px 0; }
+.codewrap { position: relative; margin: 10px 0; }
+.codewrap .cap { font-size: 12.5px; font-weight: 600; color: var(--cp-text-muted); margin: 0 0 4px; display: flex; justify-content: space-between; }
+pre.code {
+  margin: 0; padding: 12px 14px; overflow: auto; background: var(--cp-surface-soft); border: 1px solid var(--cp-border);
+  border-radius: 10px; font-size: 12.8px; line-height: 1.55; tab-size: 2; max-height: 560px;
+}
+pre.code code { white-space: pre; }
+.c { color: var(--cp-text-soft); }
+button.copy {
+  position: absolute; top: 26px; right: 8px; font: inherit; font-size: 12px; padding: 2px 10px; border-radius: 8px; cursor: pointer;
+  color: var(--cp-accent); background: var(--cp-surface); border: 1px solid var(--cp-highlight); opacity: 0.92;
+}
+.codewrap.nocap button.copy { top: 8px; }
+button.copy:hover { background: var(--cp-accent-soft); }
+button.copy.ok { color: var(--cp-accent-fg); background: var(--cp-success); border-color: var(--cp-success); }
+details { margin: 10px 0; border: 1px solid var(--cp-border); border-radius: 10px; background: var(--cp-bg-elevated); }
+details > summary { cursor: pointer; padding: 8px 14px; font-weight: 600; font-size: 14px; color: var(--cp-text-muted); }
+details[open] > summary { border-bottom: 1px solid var(--cp-border); color: var(--cp-text); }
+details > .inner { padding: 2px 14px 10px; }
+.expect, .callout {
+  margin: 10px 0; padding: 9px 14px; border-radius: 10px; border: 1px solid var(--cp-border); background: var(--cp-bg-elevated);
+  border-left: 4px solid var(--cp-success); font-size: 14px;
+}
+.expect > .lbl, .callout > .lbl { font-weight: 700; font-size: 12.5px; margin-bottom: 4px; color: var(--cp-success); letter-spacing: 0.02em; }
+.expect pre { margin: 6px 0 2px; padding: 8px 10px; background: var(--cp-surface); border: 1px solid var(--cp-border); border-radius: 8px; font-size: 12.3px; overflow: auto; line-height: 1.5; }
+.callout { border-left-color: var(--cp-accent); }
+.callout > .lbl { color: var(--cp-accent); }
+.callout.warn { border-left-color: var(--cp-warning); }
+.callout.warn > .lbl { color: var(--cp-warning); }
+.callout.danger { border-left-color: var(--cp-danger); }
+.callout.danger > .lbl { color: var(--cp-danger); }
+table { border-collapse: collapse; width: 100%; margin: 10px 0; font-size: 14px; background: var(--cp-surface); border: 1px solid var(--cp-border); border-radius: 10px; overflow: hidden; }
+th, td { text-align: left; padding: 8px 12px; border-bottom: 1px solid var(--cp-border); vertical-align: top; }
+th { background: var(--cp-surface-soft); font-size: 12.5px; color: var(--cp-text-muted); letter-spacing: 0.02em; }
+tr:last-child td { border-bottom: 0; }
+table.nw td:first-child { white-space: nowrap; }
+a.chip { text-decoration: none; }
+a.chip:hover { border-color: var(--cp-accent); color: var(--cp-accent); }
+th.res { white-space: nowrap; }
+td.ok { color: var(--cp-success); font-weight: 700; white-space: nowrap; }
+td.part { color: var(--cp-warning); font-weight: 700; white-space: nowrap; }
+td.no { color: var(--cp-danger); font-weight: 700; white-space: nowrap; }
+.diagram { background: var(--cp-surface); border: 1px solid var(--cp-border); border-radius: 16px; padding: 10px; margin: 12px 0; }
+.diagram svg { width: 100%; height: auto; display: block; }
+.diagram .box { fill: var(--cp-surface-soft); stroke: var(--cp-border-strong); stroke-width: 1.2; }
+.diagram .boxa { fill: var(--cp-accent-soft); stroke: var(--cp-accent); stroke-width: 1.4; }
+.diagram .lbl { fill: var(--cp-text); font-size: 13px; font-family: "Segoe UI", Aptos, Calibri, sans-serif; }
+.diagram .sub { fill: var(--cp-text-muted); font-size: 11px; font-family: "Segoe UI", Aptos, Calibri, sans-serif; }
+.diagram .ttl { fill: var(--cp-accent); font-size: 12px; font-weight: 700; font-family: "Segoe UI", Aptos, Calibri, sans-serif; letter-spacing: 0.04em; }
+.diagram .arr { stroke: var(--cp-text-soft); stroke-width: 1.4; fill: none; }
+.diagram .arrh { fill: var(--cp-text-soft); }
+footer.foot { max-width: 1240px; margin: 0 auto; padding: 0 28px 40px; color: var(--cp-text-soft); font-size: 13px; }
+@media (max-width: 1000px) {
+  .layout { grid-template-columns: minmax(0, 1fr); gap: 12px; }
+  .hero, .layout, footer.foot { padding-left: 16px; padding-right: 16px; }
+  .hero h1 { font-size: 24px; }
+  table { display: block; overflow-x: auto; }
+  nav.toc { position: static; max-height: none; border-bottom: 1px solid var(--cp-border); padding-bottom: 12px; }
+}
+@media print {
+  nav.toc, button.copy { display: none !important; }
+  .layout { display: block; padding: 0 12px; }
+  .step { break-inside: avoid; box-shadow: none; }
+  pre.code { max-height: none; overflow: visible; white-space: pre-wrap; }
+  details { display: block; }
+}
+
+.step h4 { margin: 18px 0 6px; font-size: 15px; }
+table.cmp th:first-child, table.cmp td:first-child { width: 22%; }
+table.cmp td:nth-child(3), table.cmp td:nth-child(4) { background: var(--cp-accent-soft); }
+table.cmp th small { font-weight: 400; color: var(--cp-text-soft); }
+sup { font-size: 0.75em; color: var(--cp-text-soft); }
+.foot-note { font-size: 12.5px; color: var(--cp-text-muted); margin: 4px 0 12px; }
+.two { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+.two ol { margin: 4px 0; padding-left: 22px; font-size: 14px; }
+@media (max-width: 1000px) { .two { grid-template-columns: minmax(0, 1fr); } }
+</style>
+</head>
+<body>
+<header class="hero">
+<div class="eyebrow">Microsoft Foundry · 프롬프트 에이전트 · MAF 호스티드 에이전트</div>
+<h1>같은 모니터링, Foundry 에이전트로 만들면 얼마나 간단해질까</h1>
+<p class="lead">AOAI 로그 수집 실습(R1~R8)이 만들던 요청 단위 모니터링을 <b>Foundry 프로젝트 · 프롬프트 에이전트 · MAF 호스티드 에이전트</b>로 다시 만들어, 새 리소스 그룹에서 실제로 실행한 결과를 비교합니다.
+설정 코드는 <b>234줄 → 35줄</b>, 에이전트 코드에는 텔레메트리 코드가 <b>0줄</b>, 환경은 <code>azd up</code> 한 번이면 만들어집니다.</p>
+<div class="chips">
+<span class="chip"><b>검증</b> 2026-10-24 · Korea Central · gpt-5.4-mini · azd 1.37.1</span>
+<span class="chip"><b>소요</b> azd up 약 4분 · 전체 약 25분</span>
+<span class="chip"><b>비용</b> 토큰 · 수집 소액 (호스티드는 컨테이너 사용 시간)</span>
+<span class="chip"><b>형식</b> 한 페이지 · bash · 복사 버튼</span>
+<a class="chip" href="#x1"><b>검증 기록</b> 보기 →</a>
+<a class="chip" href="aoai-logging-hands-on-lab.html"><b>원본</b> AOAI + VM 가이드 →</a>
+</div>
+</header>
+<div class="layout">
+<nav class="toc" aria-label="목차"><div class="grp">시작하기 전에</div><a href="#start">개요 · 비교 · 준비물</a><div class="grp">A · 환경 만들기</div><a href="#a1">A1 도구 · 로그인</a><a href="#a2">A2 azd up</a><a href="#a3">A3 확인 · 도우미 함수</a><div class="grp">B · 호출</div><a href="#b1">B1 azd 로 호출</a><a href="#b2">B2 클라이언트 스크립트</a><div class="grp">C · 확인과 분석</div><a href="#c1">C1 트레이스 도착</a><a href="#c2">C2 에이전트 단위 지연</a><a href="#c3">C3 느린 곳 가리기</a><a href="#c4">C4 요청 한 건 따라가기</a><a href="#c5">C5 토큰 · 모델 메트릭</a><a href="#c6">C6 포털에서 보는 곳</a><div class="grp">D · 알림 · 장애 재현</div><a href="#d1">D1 알림 만들기</a><a href="#d2">D2 장애 만들기</a><a href="#d3">D3 알림 확인 · 실패 원인</a><a href="#d4">D4 복구 · 알림 끄기</a><div class="grp">E · 비교 정리와 삭제</div><a href="#e1">E1 R1~R8 은 어디로</a><a href="#e2">E2 삭제</a><div class="grp">부록</div><a href="#x1">A 확인한 사실</a><a href="#x2">B 문제 해결</a><a href="#x3">C 운영 적용 · 개인정보</a><a href="#x4">D 리소스 · 줄 수 상세</a></nav>
+<main><section id="start"><h2>시작하기 전에<small>목표 · 구성 · 비교 · 준비물</small></h2><p>원본 가이드(AOAI + VM 앱)는 요청 단위 로그를 얻으려고 진단 설정 · VM 에이전트 · 앱 코드 · probe · 알림을 하나씩 켰습니다(R1~R8). 이 가이드는 같은 목적을 <b>Foundry 프로젝트 + 프롬프트 에이전트 + MAF(Microsoft Agent Framework) 호스티드 에이전트</b>로 다시 만들어 보고, <b>새 리소스 그룹에서 실제로 실행해</b> 설정량과 얻는 데이터를 비교합니다.</p><div class="diagram"><svg viewBox="0 0 960 330" role="img" aria-label="구성도: 클라이언트가 Foundry 프로젝트의 프롬프트 에이전트와 호스티드 에이전트를 호출하면 플랫폼과 컨테이너가 Application Insights 로 트레이스를 보냅니다">
+<defs><marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="arrh"/></marker></defs>
+<rect class="box" x="16" y="52" width="196" height="150" rx="14"/>
+<text class="ttl" x="32" y="76">클라이언트</text>
+<text class="lbl" x="32" y="104">invoke_agents.py</text><text class="sub" x="32" y="124">Foundry SDK · 39줄</text>
+<text class="sub" x="32" y="150">traceparent 헤더로</text><text class="sub" x="32" y="168">trace_id 를 직접 지정</text>
+<rect class="box" x="268" y="28" width="360" height="274" rx="14"/>
+<text class="ttl" x="284" y="52">FOUNDRY 프로젝트 · Korea Central</text>
+<rect class="boxa" x="284" y="66" width="328" height="64" rx="10"/>
+<text class="lbl" x="298" y="92">프롬프트 에이전트</text><text class="sub" x="298" y="112">코드 없음 · 모델 + 지시문 (azure.yaml)</text>
+<rect class="boxa" x="284" y="142" width="328" height="64" rx="10"/>
+<text class="lbl" x="298" y="168">MAF 호스티드 에이전트</text><text class="sub" x="298" y="188">main.py 16줄 · 세션마다 격리된 컨테이너</text>
+<rect class="box" x="284" y="220" width="328" height="64" rx="10"/>
+<text class="lbl" x="298" y="246">모델 배포 gpt-5.4-mini</text><text class="sub" x="298" y="266">Foundry Models · 메트릭은 설정 없이 자동</text>
+<rect class="boxa" x="692" y="28" width="252" height="274" rx="14"/>
+<text class="ttl" x="708" y="52">APPLICATION INSIGHTS</text>
+<text class="sub" x="708" y="82">requests</text><text class="sub" x="708" y="102">dependencies (invoke_agent · chat)</text><text class="sub" x="708" y="122">traces (컨테이너 로그)</text>
+<text class="sub" x="708" y="142">exceptions</text>
+<text class="lbl" x="708" y="184">플랫폼 스팬 + 컨테이너 스팬</text><text class="sub" x="708" y="204">코드 없이 자동 수집</text>
+<text class="lbl" x="708" y="248">로그 알림 2개</text><text class="sub" x="708" y="268">느린 실행 · 실패한 실행</text>
+<path class="arr" d="M212,127 L268,127" marker-end="url(#ah)"/>
+<path class="arr" d="M612,98 L692,98" marker-end="url(#ah)"/>
+<path class="arr" d="M612,174 L692,150" marker-end="url(#ah)"/>
+<path class="arr" d="M448,206 L448,220" marker-end="url(#ah)"/>
+<text class="sub" x="222" y="118">호출</text>
+<text class="sub" x="624" y="90">트레이스</text>
+</svg></div><div class="chips"><span class="chip"><b>A</b> azd up · 약 4분</span><span class="chip">→</span><span class="chip"><b>B</b> 호출 · 약 3분</span><span class="chip">→</span><span class="chip"><b>C</b> 확인·분석 · 약 5분</span><span class="chip">→</span><span class="chip"><b>D</b> 알림 · 장애 재현 · 약 10분</span><span class="chip">→</span><span class="chip"><b>E</b> 정리 · 약 3분</span></div><h4>한눈에 비교 — 같은 모니터링, 설정은 얼마나 줄었나</h4><table class="cmp"><thead><tr><th>항목</th><th>AOAI + VM 앱<br><small>원본 가이드</small></th><th>Foundry<br><small>프롬프트 에이전트</small></th><th>Foundry<br><small>호스티드 에이전트 (MAF)</small></th></tr></thead><tbody><tr><td>모니터링 설정 코드·명령 줄 수<sup>①</sup></td><td><b>234줄</b> (R1·R3~R8)</td><td><b>35줄</b></td><td><b>35줄</b> (같은 스크립트)</td></tr><tr><td>앱 · 에이전트 코드 안의 텔레메트리 코드</td><td><b>66줄</b> (R3 54 + R4 12)</td><td><b>0줄</b> (코드가 없음)</td><td><b>0줄</b> (main.py 전체가 16줄)</td></tr><tr><td>직접 만드는 모니터링용 Azure 리소스 종류<sup>②</sup></td><td><b>13종</b></td><td><b>6종</b></td><td><b>6종</b></td></tr><tr><td>관리하는 서버</td><td>VM 1대 + Azure Monitor Agent + probe</td><td>없음</td><td>없음 (컨테이너는 Foundry 가 운영)</td></tr><tr><td>설정에 걸린 시간</td><td>환경 약 15분 + 로그 켜기 약 16분<sup>③</sup></td><td><b>azd up 3분 42초</b> (환경 + 에이전트 + 연결) + 알림 15초</td><td>같은 azd up 한 번</td></tr><tr><td>첫 요청 로그가 조회되기까지</td><td>AOAI 진단 로그 <b>20~26분</b> (설정 후 활성화 지연)</td><td>약 <b>11초</b><sup>④</sup></td><td>약 <b>11초</b><sup>④</sup></td></tr><tr><td>요청 한 건을 잇는 키</td><td>apim-request-id ↔ CorrelationId (앱이 응답 헤더를 로그에 남겨야 함)</td><td>클라이언트가 보낸 <code>traceparent</code> 의 trace_id = <code>operation_Id</code></td><td>같음 (컨테이너 로그까지 같은 trace_id)</td></tr><tr><td>지연을 가르는 기준</td><td>앱이 잰 시간 vs AOAI 서버 시간</td><td>실행 시간 − 모델 호출 시간 (런타임 오버헤드)</td><td>실행 시간 − 모델 호출 시간 + <b>cold start 4단계 분해</b></td></tr><tr><td>새로 생기는 주의점</td><td>—</td><td>드물게 실행이 모델 호출보다 약 10초 길어짐 (이번 검증 28건 중 1건 · 원인은 에이전트 런타임)</td><td>새 세션마다 cold start 약 7초 · 컨테이너 시간 과금</td></tr></tbody></table><p class="foot-note"><sup>①</sup> 빈 줄 · 주석을 뺀 줄 수. 원본은 <code>snippets/</code> 의 R1 8 · R3 54 · R4 12 · R5 33 · R6 23 · R7 84 · R8 20 줄, 이 가이드는 <code>connect-appinsights.sh</code> 16 + <code>alerts.sh</code> 19 줄 (줄 수는 빌드할 때 파일에서 직접 센 값이며, <a href="#x4">부록 D</a>에 상세). <sup>②</sup> 목록은 <a href="#x4">부록 D</a>. <sup>③</sup> 원본 가이드의 B1~B7 단계 표기(1+3+3+2+2+5분 등)를 더한 값이며, 위 줄 수는 VM · 네트워크 구간 로그를 포함합니다. Foundry 에이전트에는 VM 이 없어서 그 구간은 애초에 필요하지 않습니다. <sup>④</sup> 호출이 끝난 뒤 마지막 호출이 조회되기까지의 시간입니다. 연결을 만든 지 2분 이상 지나서 호출한 값이라, 연결 직후 곧바로 호출했을 때의 활성화 지연은 확인하지 못했습니다.</p><div class="callout warn"><div class="lbl">읽을 때 주의 — 이 비교가 말하지 못하는 것</div><ul><li>원본 가이드는 <b>이미 있는 앱</b>(VM 위 앱 → AOAI)을 그대로 두고 로그를 더하는 방법입니다. 이 가이드는 <b>앱의 모델 호출 부분을 에이전트로 옮길 수 있을 때</b>의 이야기입니다. 에이전트로 옮기지 못하는 앱은 원본 가이드의 방식이 그대로 필요합니다.</li><li>엔드포인트만 AOAI → Foundry 로 바꿔서는 에이전트 트레이스가 생기지 않습니다. 에이전트(프롬프트 · 호스티드)를 거쳐 호출해야 합니다.</li><li>수치는 <b>2026-10-24 Korea Central 한 환경에서 잰 값</b>입니다. 호스티드 에이전트는 <b>세션마다 cold start</b>(실측 약 7초)가 있어 응답 시간 자체는 오히려 늘어날 수 있습니다 — 모니터링이 쉬워지는 것과 응답이 빨라지는 것은 별개입니다.</li><li>프롬프트 · 응답 <b>본문이 트레이스에 기록</b>됩니다(원본 가이드는 메타데이터만 수집). 접근 제어는 <a href="#x3">부록 C</a> 참고.</li></ul></div><h4>준비물</h4><table class="nw"><thead><tr><th>항목</th><th>요구 사항</th><th>비고</th></tr></thead><tbody>
+<tr><td>Azure CLI</td><td>2.60 이상 (2.86 으로 검증)</td><td><code>az version</code></td></tr>
+<tr><td>Azure Developer CLI(azd)</td><td><b>1.37.1</b> 이상 + <code>microsoft.foundry</code> 확장 (azure.ai.agents 1.0.0-beta.22)</td><td>확장은 아직 <b>베타</b>라 버전이 자주 바뀝니다</td></tr>
+<tr><td>Python</td><td>3.10 이상 (클라이언트 스크립트용 · 3.14 로 검증)</td><td>호스티드 에이전트는 Foundry 가 Python 3.13 으로 실행</td></tr>
+<tr><td>셸</td><td>bash (macOS · Linux · WSL · Cloud Shell)</td><td>git · curl 필요</td></tr>
+<tr><td>구독 권한</td><td>실습용 구독의 Owner (또는 Contributor + 역할 할당 권한)</td><td>호출자에게 Foundry User 역할을 부여합니다</td></tr>
+<tr><td>모델 쿼터</td><td>koreacentral · Global Standard · gpt-5.4-mini 10 이상 (단위 1K TPM)</td><td>아래 확인 명령</td></tr>
+<tr><td>비용(예상)</td><td>토큰 비용 소액 + Application Insights 수집 소액. 호스티드 에이전트는 <b>컨테이너 컴퓨트를 쓴 시간만큼</b> 과금(공식 가격 페이지), 프롬프트 에이전트는 추가 요금 없음</td><td>실습은 모두 합쳐 수십 분 규모</td></tr>
+</tbody></table><div class="codewrap"><div class="cap"><span>쿼터 확인 (limit − used 가 10 이상이면 됩니다)</span><span></span></div><button class="copy" type="button">복사</button><pre class="code" data-run="A0"><code>az cognitiveservices usage list -l koreacentral --query "[?name.value=='OpenAI.GlobalStandard.gpt-5.4-mini'].{used:currentValue,limit:limit}" -o table</code></pre></div><div class="expect"><div class="lbl">예상 결과</div><pre>Used    Limit
+------  -------
+20.0    1000.0</pre></div><div class="callout warn"><div class="lbl">안전 수칙</div><ul><li><b>실습용 구독</b>에서 실행하세요. 마지막 단계(E)에서 <code>azd down</code> 으로 리소스 그룹을 통째로 삭제합니다.</li><li>이 가이드의 모든 명령은 <b>새 리소스 그룹</b>(<code>rg-&lt;azd 환경 이름&gt;</code>)만 만들고 기존 리소스는 건드리지 않습니다.</li><li>키를 쓰지 않습니다 — 호출은 Entra ID(<code>az login</code>), 호스티드 에이전트는 Foundry 가 발급한 에이전트 ID 로 모델을 호출합니다.</li></ul></div></section><section id="a"><h2>A · 환경 만들기<small>azd up 한 번으로 프로젝트 · 모델 · 연결 · 에이전트</small></h2><div class="step" id="a1"><h3><span class="badge">A1</span><span>도구 · 로그인</span></h3><p class="meta">소요 약 1분</p><p>azd 는 <code>az</code> 와 <b>로그인이 따로</b>입니다. 서로 다른 계정으로 로그인되어 있으면 azd 가 구독을 찾지 못합니다 (부록 B 의 첫 항목). <code>azd extension install microsoft.foundry</code> 한 줄이 에이전트 · 프로젝트 · 연결 확장을 함께 설치합니다.</p><div class="codewrap"><div class="cap"><span>① 버전 확인 · 로그인 · 확장 설치</span><span></span></div><button class="copy" type="button">복사</button><pre class="code" data-run="A1"><code>az version --query '"azure-cli"' -o tsv; azd version | head -1       # azd 1.37.1 이상
+az login                                                              # 이미 로그인되어 있으면 생략 (Cloud Shell 은 불필요)
+azd auth login                                                        # az 와 같은 계정을 쓰려면 대신: azd config set auth.useAzCliAuth true
+azd extension install microsoft.foundry                               # Foundry 확장 묶음 (이미 있으면 건너뜀)
+for e in application-insights log-analytics scheduled-query; do az extension add -n $e -y 2&gt;/dev/null; done   # az monitor 확장 (설치 물음 방지)
+export SUB="&lt;구독 ID&gt;"                                                # ← 실습용 구독 ID (az account list -o table)
+az account set -s "$SUB"</code></pre></div><div class="expect"><div class="lbl">예상 결과</div><pre>2.86.0
+azd version 1.37.1 (commit 6bd1275b6b31104034673946953533eb860dd646) (stable)
+…
+SUCCESS: Extension(s) installed successfully</pre></div></div><div class="step" id="a2"><h3><span class="badge">A2</span><span>저장소 받기 → azd up (프로젝트 · 모델 · Application Insights 연결 · 에이전트 2개)</span></h3><p class="meta">소요 약 3~4분 · 이 한 단계가 원본 가이드의 A · B1~B3 에 해당</p><p>이 저장소의 <code>foundry/</code> 폴더가 그대로 azd 프로젝트입니다. <b>azure.yaml 한 파일</b>이 Foundry 프로젝트 · 모델 배포 · 에이전트 2개를 정의하고, 프로젝트가 만들어진 직후 <code>postprovision</code> 훅이 Application Insights 를 만들어 프로젝트에 연결합니다. 연결만 되어 있으면 두 에이전트의 트레이스가 코드 없이 쌓입니다.</p><div class="codewrap"><div class="cap"><span>한 번에: 저장소 → 환경 만들기 → azd up (azd 환경 이름이 리소스 그룹 이름 rg-&lt;환경 이름&gt; 이 됩니다)</span><span></span></div><button class="copy" type="button">복사</button><pre class="code" data-run="A2"><code>git clone --depth 1 https://github.com/junwoojeong100/azure-openai-latency-logging-lab.git
+cd azure-openai-latency-logging-lab/foundry
+azd env new fdmon-$(LC_ALL=C tr -dc 'a-z0-9' &lt;/dev/urandom | head -c5) --subscription "$SUB" --location koreacentral
+azd up</code></pre></div><div class="expect"><div class="lbl">예상 결과</div><pre>SUCCESS: Your application was provisioned and deployed to Azure in 3 minutes 42 seconds.
+  Provisioning: 1 minute 57 seconds
+  Deploying:    1 minute 41 seconds</pre></div><div class="callout warn"><div class="lbl">가끔 첫 시도가 실패합니다</div><p>검증 중 새 환경 3번 중 1번은 프로젝트 생성 단계에서 <code>FailedIdentityOperation … Conflict … pending delete operation</code> 으로 약 45초 만에 실패했고, <b>같은 <code>azd up</code> 을 다시 실행하면 성공</b>했습니다 (azd 는 이어서 진행합니다).</p></div><details><summary>무엇이 만들어지나 — azure.yaml (모니터링과 관련된 부분은 hooks 한 블록뿐)</summary><div class="inner"><p><code>ai-project</code> 가 Foundry 리소스 · 프로젝트 · 모델 배포를, 나머지 두 서비스가 에이전트를 정의합니다. 프롬프트 에이전트는 <b>모델 이름과 지시문뿐</b>이고 코드가 없습니다.</p><div class="codewrap"><div class="cap"><span>foundry/azure.yaml</span><span></span></div><button class="copy" type="button">복사</button><pre class="code"><code><span class="c"># yaml-language-server: $schema=https://raw.githubusercontent.com/Azure/azure-dev/main/schemas/v1.0/azure.yaml.json</span>
+name: foundry-agents-monitoring
+
+requiredVersions:
+  azd: "&gt;=1.37.1"
+  extensions:
+    azure.ai.agents: "&gt;=1.0.0-beta.22"
+
+infra:
+  provider: microsoft.foundry
+
+hooks:
+<span class="c">  # 프로젝트가 만들어진 직후 Application Insights 를 만들어 연결 → 이후 모든 에이전트의 트레이스가 자동으로 쌓인다</span>
+  postprovision:
+    shell: sh
+    run: scripts/connect-appinsights.sh
+
+services:
+<span class="c">  # Foundry 리소스 + 프로젝트 + 모델 배포 (Application Insights · Log Analytics 연결 포함)</span>
+  ai-project:
+    host: azure.ai.project
+    deployments:
+      - name: gpt-5.4-mini
+        model:
+          format: OpenAI
+          name: gpt-5.4-mini
+          version: "2026-03-17"
+        sku:
+          name: GlobalStandard
+          capacity: 10
+
+<span class="c">  # 프롬프트 에이전트: 코드 없이 모델 + 지시문만 선언</span>
+  report-prompt-agent:
+    host: azure.ai.agent
+    kind: prompt
+    name: report-prompt-agent
+    description: Prompt agent that explains how to write business reports.
+    instructions: You explain how to write business reports. Answer in Korean.
+    model: gpt-5.4-mini
+    project: report-prompt-agent
+    uses:
+      - ai-project
+
+<span class="c">  # 호스티드 에이전트: Microsoft Agent Framework(MAF) 코드를 Foundry 가 실행</span>
+  report-maf-agent:
+    host: azure.ai.agent
+    kind: hosted
+    name: report-maf-agent
+    description: Microsoft Agent Framework agent that explains how to write business reports.
+    language: python
+    project: src/report-maf-agent
+    codeConfiguration:
+      runtime: python_3_13
+      entryPoint: main.py
+    protocols:
+      - protocol: responses
+        version: 2.0.0
+    env:
+      PYTHONNOUSERSITE: "1"
+      AZURE_AI_MODEL_DEPLOYMENT_NAME: ${AZURE_AI_MODEL_DEPLOYMENT_NAME}
+    container:
+      resources:
+        cpu: "0.5"
+        memory: 1Gi
+    uses:
+      - ai-project</code></pre></div><div class="codewrap"><div class="cap"><span>foundry/scripts/connect-appinsights.sh — 연결 훅이 실행하는 스크립트 (아래 ‘모니터링 설정’ 전부)</span><span></span></div><button class="copy" type="button">복사</button><pre class="code"><code><span class="c">#!/bin/sh</span>
+<span class="c"># Foundry 프로젝트에 Application Insights 를 만들어 연결한다.</span>
+<span class="c"># 연결만 되어 있으면 프롬프트·호스티드 에이전트의 서버 쪽 트레이스가 코드 변경 없이 쌓인다.</span>
+set -eu
+RG="$AZURE_RESOURCE_GROUP"; LOC="$AZURE_LOCATION"
+LAW="law-$AZURE_ENV_NAME"; APPI="appi-$AZURE_ENV_NAME"
+PROJECT_ID="/subscriptions/$AZURE_SUBSCRIPTION_ID/resourceGroups/$RG/providers/Microsoft.CognitiveServices/accounts/$AZURE_AI_ACCOUNT_NAME/projects/$AZURE_AI_PROJECT_NAME"
+
+az monitor log-analytics workspace create -g "$RG" -n "$LAW" -l "$LOC" -o none
+az monitor app-insights component create -g "$RG" -a "$APPI" -l "$LOC" -o none \
+  --workspace "$(az monitor log-analytics workspace show -g "$RG" -n "$LAW" --query id -o tsv)" --kind web --application-type web
+APPI_ID=$(az monitor app-insights component show -g "$RG" -a "$APPI" --query id -o tsv)
+CS=$(az monitor app-insights component show -g "$RG" -a "$APPI" --query connectionString -o tsv)
+
+az rest --method put -o none --url "https://management.azure.com$PROJECT_ID/connections/$APPI?api-version=2025-04-01-preview" \
+  --body "{\"properties\":{\"category\":\"AppInsights\",\"target\":\"$APPI_ID\",\"authType\":\"ApiKey\",\"isSharedToAll\":true,\"credentials\":{\"key\":\"$CS\"},\"metadata\":{\"ApiType\":\"Azure\",\"ResourceId\":\"$APPI_ID\"}}}"
+
+<span class="c"># 호출자에게 Foundry User(구 Azure AI User), 프로젝트 관리 ID 에게 Log Analytics Reader</span>
+az role assignment create -o none --assignee-object-id "$(az ad signed-in-user show --query id -o tsv)" --assignee-principal-type User \
+  --role 53ca6127-db72-4b80-b1b0-d745d6d5456d --scope "$PROJECT_ID"
+az role assignment create -o none --assignee-object-id "$(az rest --method get --url "https://management.azure.com$PROJECT_ID?api-version=2025-04-01-preview" --query identity.principalId -o tsv)" \
+  --assignee-principal-type ServicePrincipal --role 73c42c96-874c-492b-b04d-ab87d138a893 --scope "$APPI_ID"
+echo "Application Insights connected: $APPI"</code></pre></div><div class="codewrap"><div class="cap"><span>foundry/src/report-maf-agent/main.py — 호스티드 에이전트 전체 (텔레메트리 코드 없음)</span><span></span></div><button class="copy" type="button">복사</button><pre class="code"><code>import os
+
+from agent_framework import Agent
+from agent_framework.foundry import FoundryChatClient
+from agent_framework_foundry_hosting import ResponsesHostServer
+from azure.identity import DefaultAzureCredential
+
+agent = Agent(
+    client=FoundryChatClient(
+        project_endpoint=os.environ["FOUNDRY_PROJECT_ENDPOINT"],
+        model=os.environ["AZURE_AI_MODEL_DEPLOYMENT_NAME"],
+        credential=DefaultAzureCredential(),
+    ),
+    instructions="You explain how to write business reports. Answer in Korean.",
+    default_options={"store": False},
+)
+
+if __name__ == "__main__":
+    ResponsesHostServer(agent).run()</code></pre></div><div class="callout"><div class="lbl">requirements.txt 를 쓰는 이유</div><p>호스티드 에이전트 코드 배포(<code>codeConfiguration</code>)는 Foundry 가 원격에서 의존성을 설치합니다. <code>pyproject.toml</code> 만 두면 <code>[tool.poetry] section not found</code> 로 실패해서(부록 B) <code>requirements.txt</code> 를 썼습니다. <code>uv.lock</code> 을 함께 두는 방법도 있습니다.</p></div></div></details></div><div class="step" id="a3"><h3><span class="badge">A3</span><span>확인 — 환경 값 · 도우미 함수 · 만들어진 것</span></h3><p class="meta">소요 약 1분</p><p>이후 단계는 azd 환경 값을 파일로 저장해 두고 씁니다. 새 터미널에서는 <code>cd foundry &amp;&amp; set -a; . ./foundry.env; set +a</code> 로 다시 불러옵니다. <code>kq</code> 는 Application Insights 에 KQL 을 보내 결과를 표로 보여 주는 도우미입니다(포털에서는 Application Insights → Logs 에 같은 쿼리를 붙여 넣으면 됩니다).</p><div class="codewrap"><div class="cap"><span>환경 값 저장 · kq 함수 · 리소스 확인 · 에이전트 상태</span><span></span></div><button class="copy" type="button">복사</button><pre class="code" data-run="A3"><code>azd env get-values &gt; foundry.env
+cat &gt;&gt; foundry.env &lt;&lt;'EOF'
+<span class="c"># Application Insights 에 KQL 을 보내 표로 출력 (사용: kq '&lt;KQL&gt;')</span>
+kq() { az monitor app-insights query --app "appi-$AZURE_ENV_NAME" -g "$AZURE_RESOURCE_GROUP" --analytics-query "$1" -o json | python3 -c '
+import json, sys
+t = json.load(sys.stdin)["tables"][0]; cols = [c["name"] for c in t["columns"]]
+rows = [["" if v is None else str(v)[:70] for v in r] for r in t["rows"]]
+w = [max([len(c)] + [len(r[i]) for r in rows]) for i, c in enumerate(cols)]
+print("  ".join(c.ljust(w[i]) for i, c in enumerate(cols))); print("  ".join("-" * x for x in w))
+for r in rows: print("  ".join(r[i].ljust(w[i]) for i in range(len(cols))))'; }
+EOF
+set -a; . ./foundry.env; set +a
+az resource list -g "$AZURE_RESOURCE_GROUP" --query "[].{name:name, type:type}" -o table
+azd ai agent show report-prompt-agent | head -5
+azd ai agent show report-maf-agent | head -5</code></pre></div><div class="expect"><div class="lbl">예상 결과</div><pre>Name
+-----------------------------
+cog-&lt;해시&gt;
+cog-&lt;해시&gt;/fdmon-&lt;접미사&gt;
+law-fdmon-&lt;접미사&gt;
+appi-fdmon-&lt;접미사&gt;
+Name:              report-prompt-agent
+Kind:              prompt
+Version:           1
+Status:            active
+Project Endpoint:  https://cog-&lt;해시&gt;.services.ai.azure.com/api/projects/fdmon-&lt;접미사&gt;
+FIELD                            VALUE
+-----                            -----
+ID                               report-maf-agent:1
+Name                             report-maf-agent
+Version                          1</pre></div></div></section><section id="b"><h2>B · 호출<small>에이전트를 부르고 클라이언트 쪽 기록을 남깁니다</small></h2><div class="step" id="b1"><h3><span class="badge">B1</span><span>azd 로 한 번씩 호출</span></h3><p class="meta">소요 약 30초</p><p>두 에이전트를 CLI 로 한 번씩 호출합니다. <b>호스티드 에이전트는 응답에 플랫폼이 잰 시간 분해가 같이 나옵니다</b>(<code>preprocess · infra · readiness · container</code>). 같은 값이 트레이스에도 속성으로 남습니다(C3).</p><div class="codewrap"><div class="cap"><span>프롬프트 에이전트 → 호스티드 에이전트</span><span></span></div><button class="copy" type="button">복사</button><pre class="code" data-run="B1"><code>azd ai agent invoke report-prompt-agent "보고서 첫 문단은 어떻게 쓰나요? 한 문장으로 답해줘"
+azd ai agent invoke report-maf-agent "보고서 첫 문단은 어떻게 쓰나요? 한 문장으로 답해줘"</code></pre></div><div class="expect"><div class="lbl">예상 결과</div><pre>보고서 첫 문단은 **보고서의 목적, 핵심 결론, 그리고 독자가 바로 알아야 할 배경을 한 번에 제시하는 문단**으로 쓰면 됩니다.
+Trace ID:     660f514f50be9d4f06af75df555114f0
+Response:     caresp_06a2822a7e76237100iMBtb56Ki9DWIonPNzW0M1uvQJpOgGn8
+[report-maf-agent] 보고서 첫 문단은 **주제와 작성 목적을 간결하게 밝히고, 독자가 무엇을 얻을 수 있는지 한눈에 보이도록** 쓰면 됩니다.
+Client elapsed: 9.998s
+Platform latency (cold): response headers 8149 ms
+  preprocess 180 ms | infra 1119 ms | readiness 5744 ms | container 1106 ms</pre></div></div><div class="step" id="b2"><h3><span class="badge">B2</span><span>클라이언트 스크립트로 트래픽 만들기</span></h3><p class="meta">소요 약 2분</p><p>기존 앱이 모델 대신 에이전트를 부르게 바꾼다면 클라이언트가 바뀌는 부분은 <b>아래 몇 줄</b>이 전부입니다 — 텔레메트리 코드는 없습니다. 눈여겨볼 곳은 <code>traceparent</code> 헤더 한 줄: <b>클라이언트가 trace_id 를 정해서 보내면 서버 쪽 모든 기록의 <code>operation_Id</code> 가 같은 값</b>이 됩니다 (원본 가이드에서 <code>apim-request-id</code> 로 하던 요청 단위 대조를 코드 한 줄로 대신합니다).</p><div class="codewrap"><div class="cap"><span>foundry/invoke_agents.py — 에이전트를 부르고 호출마다 JSON 한 줄 출력</span><span></span></div><button class="copy" type="button">복사</button><pre class="code"><code>"""에이전트를 여러 번 호출하고, 호출마다 JSON 한 줄(클라이언트가 잰 시간 · 응답 ID · 트레이스 ID)을 출력한다.
+
+사용: python invoke_agents.py &lt;에이전트 이름&gt; [횟수=3] [short|long] [new|same]
+  new  : 호출마다 새 대화 (호스티드 에이전트는 매번 cold start)
+  same : 하나의 대화를 재사용 (첫 호출만 cold, 이후 warm)
+"""
+import json
+import os
+import secrets
+import sys
+import time
+
+from azure.ai.projects import AIProjectClient
+from azure.identity import DefaultAzureCredential
+
+PROMPTS = {
+    "short": "보고서 첫 문단은 어떻게 쓰나요? 한 문장으로 답해줘.",
+    "long": "일간 업무 보고서를 쓰는 방법을 한국어 700자 분량으로 자세히 설명해줘.",
+}
+name = sys.argv[1]
+count = int(sys.argv[2]) if len(sys.argv) &gt; 2 else 3
+prompt = PROMPTS[sys.argv[3] if len(sys.argv) &gt; 3 else "short"]
+same = (sys.argv[4] if len(sys.argv) &gt; 4 else "new") == "same"
+
+project = AIProjectClient(endpoint=os.environ["FOUNDRY_PROJECT_ENDPOINT"], credential=DefaultAzureCredential(), allow_preview=True)
+client = project.get_openai_client(agent_name=name)
+conversation = client.conversations.create().id if same else None
+
+for i in range(1, count + 1):
+    trace_id = secrets.token_hex(16)
+    options = {"conversation": conversation} if conversation else {}
+    started = time.perf_counter()
+    response = client.responses.create(
+        input=prompt,
+        extra_headers={"traceparent": f"00-{trace_id}-{secrets.token_hex(8)}-01"},
+        **options,
+    )
+    usage = response.usage
+    print(json.dumps({
+        "agent": name, "i": i, "ms": round((time.perf_counter() - started) * 1000),
+        "status": response.status, "response_id": response.id, "trace_id": trace_id,
+        "input_tokens": usage.input_tokens if usage else None, "output_tokens": usage.output_tokens if usage else None,
+        "error": response.error.message[:80] if response.error else None,
+    }, ensure_ascii=False))</code></pre></div><div class="codewrap"><div class="cap"><span>가상환경 → 호출 16번 (약 2분). 첫 줄이 클라이언트가 잰 시간(ms) · 응답 ID · trace_id</span><span></span></div><button class="copy" type="button">복사</button><pre class="code" data-run="B2"><code>python3 -m venv .venv &amp;&amp; . .venv/bin/activate
+pip install -q azure-ai-projects azure-identity
+python invoke_agents.py report-prompt-agent 5 short new | tee -a calls.jsonl     # 프롬프트 에이전트 · 짧은 질문
+python invoke_agents.py report-prompt-agent 2 long new  | tee -a calls.jsonl     # 긴 답변(약 700자)
+python invoke_agents.py report-maf-agent 2 short new    | tee -a calls.jsonl     # 호스티드 · 호출마다 새 대화 → 매번 cold start
+python invoke_agents.py report-maf-agent 5 short same   | tee -a calls.jsonl     # 호스티드 · 한 대화 재사용 → 첫 호출만 cold
+python invoke_agents.py report-maf-agent 2 long same    | tee -a calls.jsonl
+date +%s &gt; last_call.ts</code></pre></div><div class="expect"><div class="lbl">예상 결과</div><pre>{"agent": "report-prompt-agent", "i": 1, "ms": 2345, "status": "completed", "response_id": "resp_05156db56274ab06006adc028b44188197a1fe5d7270b77540", "trace_id": "25968e88fe5e45c980c1550c8d5614ad", "input_tokens": 40, "output_tokens": 46, "error": null}
+{"agent": "report-prompt-agent", "i": 2, "ms": 1238, "status": "completed", "response_id": "resp_0e98c56726f35a41006adc028cc07081939cdd78edaf9cf00d", "trace_id": "a73c52d396e6b6787607951b6478c30e", "input_tokens": 40, "output_tokens": 37, "error": null}
+{"agent": "report-prompt-agent", "i": 1, "ms": 4394, "status": "completed", "response_id": "resp_0e095d6c1f7dea5d006adc0294ed808193a222e7d2c6c079ac", "trace_id": "ae4aa75e0c5c199329776b52d3fd859f", "input_tokens": 45, "output_tokens": 310, "error": null}
+{"agent": "report-maf-agent", "i": 1, "ms": 11365, "status": "completed", "response_id": "caresp_09c8f9aaf22630e300sVvqCHmnDJCXsIvJKxKoaMPbTIWR0ALj", "trace_id": "ae0d8e2df34d386e1ccc09fe40197704", "input_tokens": 40, "output_tokens": 44, "error": null}
+{"agent": "report-maf-agent", "i": 2, "ms": 9313, "status": "completed", "response_id": "caresp_0577fd4d4cbb593b00b2YOakvZWRul1Qy7mkTEBI2CMw11R13a", "trace_id": "01903061e76f306c5f7af73628af01f1", "input_tokens": 40, "output_tokens": 48, "error": null}
+{"agent": "report-maf-agent", "i": 1, "ms": 11071, "status": "completed", "response_id": "caresp_09dced6fda1b539a00pMMkZW1WZAyiKV6W3ZMmzr4IvPey3k1I", "trace_id": "7513a4edc8820a5f694a8495bddb059a", "input_tokens": 40, "output_tokens": 49, "error": null}
+{"agent": "report-maf-agent", "i": 2, "ms": 1796, "status": "completed", "response_id": "caresp_09dced6fda1b539a00oi9CcQ8tnGzIyMdWcZ24Ho8sQ6wgCpDA", "trace_id": "aef7e0bf5e4a73ac07949a885bbe21ab", "input_tokens": 113, "output_tokens": 40, "error": null}
+{"agent": "report-maf-agent", "i": 3, "ms": 1846, "status": "completed", "response_id": "caresp_09dced6fda1b539a00xMLH0BqKmFAWqBs2MNAlkwyT1raLWwlI", "trace_id": "1920a5bee11bfd9490773a7e8cca2929", "input_tokens": 177, "output_tokens": 33, "error": null}
+{"agent": "report-maf-agent", "i": 1, "ms": 11532, "status": "completed", "response_id": "caresp_0dbab95183786597002aWoOpZx2veov3X9bOJ6VgqO3ja0Py2w", "trace_id": "f2743a37448281f72e3b5e68d3953678", "input_tokens": 45, "output_tokens": 288, "error": null}
+… (나머지 줄 생략)</pre></div><div class="callout"><div class="lbl">클라이언트가 본 시간 — 호스티드 에이전트의 cold / warm</div><p>같은 <code>short</code> 질문인데 호스티드 에이전트는 <b>새 대화(세션)마다 약 8~12초</b>, <b>같은 대화를 재사용하면 첫 호출만 느리고 이후 1~2초</b>입니다. 프롬프트 에이전트는 대부분 1~2초입니다. 이 차이가 어디서 오는지는 C3 에서 트레이스로 가려냅니다. 또 <code>status</code> 가 <code>failed</code> 여도 HTTP 는 200 입니다 — 클라이언트 코드는 <b>status 를 확인</b>해야 합니다(D2).</p></div></div></section><section id="c"><h2>C · 확인과 분석<small>트레이스가 들어왔는지, 어디서 느린지를 가립니다</small></h2><div class="step" id="c1"><h3><span class="badge">C1</span><span>트레이스가 들어왔는지</span></h3><p class="meta">호출 후 1~3분 (마지막 호출이 보일 때까지 기다림)</p><p>Application Insights 로 가는 길에는 이미 두 가지가 연결되어 있습니다 — ① <b>플랫폼 스팬</b>: 프롬프트 에이전트 실행과 모델 호출(<code>responsesapi</code>), 호스티드 에이전트 요청(<code>agentsv2</code>), ② <b>컨테이너 스팬 · 로그</b>: 호스티드 에이전트 컨테이너가 스스로 보냄(역할 이름 = 에이전트 이름). 마지막 호출의 trace_id 가 조회될 때까지 기다린 뒤 건수를 봅니다.</p><div class="codewrap"><div class="cap"><span>① 마지막 호출이 조회될 때까지 대기 (5초 간격)</span><span></span></div><button class="copy" type="button">복사</button><pre class="code" data-run="C1"><code>TID=$(tail -1 calls.jsonl | python3 -c 'import json,sys; print(json.loads(sys.stdin.read())["trace_id"])')
+for i in $(seq 1 60); do
+  N=$(az monitor app-insights query --app "appi-$AZURE_ENV_NAME" -g "$AZURE_RESOURCE_GROUP" --analytics-query "union requests, dependencies | where operation_Id == '$TID' | count" --query 'tables[0].rows[0][0]' -o tsv)
+  [ "${N:-0}" -gt 0 ] &amp;&amp; break; sleep 5
+done
+echo "마지막 호출(trace_id=$TID)의 스팬 ${N:-0}건 — 호출이 끝나고 $(( $(date +%s) - $(cat last_call.ts) ))초 뒤에 조회됨"
+sleep 30</code></pre></div><div class="expect"><div class="lbl">예상 결과</div><pre>마지막 호출(trace_id=fa2365d188fc32c2db77971073cf7fca)의 스팬 6건 — 호출이 끝나고 11초 뒤에 조회됨</pre></div><div class="codewrap"><div class="cap"><span>② 최근 30분 — 테이블 · 역할별 건수</span><span></span></div><button class="copy" type="button">복사</button><pre class="code" data-run="C1"><code>kq '
+union requests, dependencies, traces, exceptions
+| where timestamp &gt; ago(30m)
+| summarize rows = count() by itemType, role = cloud_RoleName
+| order by itemType asc, role asc
+'</code></pre></div><div class="expect"><div class="lbl">예상 결과</div><pre>itemType    role              rows
+----------  ----------------  ----
+dependency  report-maf-agent  30  
+dependency  responsesapi      36  
+exception   report-maf-agent  5   
+request     agentsv2          10  
+trace       report-maf-agent  383 </pre></div><div class="callout"><div class="lbl">실측으로 확인한 것</div><ul><li>호출이 끝나고 마지막 호출의 스팬이 조회되기까지 약 <b>11초</b>였습니다. 이 가이드 전체 실행에서 텔레메트리 799건을 Log Analytics 로 세어 보니(스팬이 끝난 시각 → 수집 시각) <b>중앙값 약 6초, 96% 가 1분 안, 가장 늦은 것은 약 2분 40초</b>였습니다. 원본 가이드의 AOAI 진단 로그는 설정 후 20~26분이 지나서야 기록되기 시작했습니다.</li><li>역할(<code>cloud_RoleName</code>) <code>responsesapi</code> · <code>agentsv2</code> 는 <b>플랫폼이 보낸 것</b>, 에이전트 이름(<code>report-maf-agent</code>)은 <b>호스티드 컨테이너가 보낸 것</b>입니다. 컨테이너는 시작할 때 Azure Monitor 를 스스로 설정합니다 — 컨테이너 로그에 “Azure Monitor configured via azure-monitor-opentelemetry package” 가 남습니다.</li><li>컨테이너가 cold start 할 때마다 <code>ModuleNotFoundError: Failed to set up A365 OpenAI Agents instrumentation</code> 예외가 1건씩 남습니다 (무해한 소음 — 쿼리에서 제외).</li></ul></div></div><div class="step" id="c2"><h3><span class="badge">C2</span><span>에이전트 단위 — 실행 수 · 지연</span></h3><p class="meta">원본 가이드의 C3(시간 패턴)에 해당</p><p>프롬프트 에이전트의 한 번 실행은 <code>dependencies</code> 의 <code>invoke_agent</code> 스팬, 호스티드 에이전트의 한 번 실행은 <code>requests</code> 의 <code>invoke_agent</code> 입니다. 호스티드는 <b>요청 시간에 cold start 시간(플랫폼 전처리 + 인프라 + 컨테이너 준비)을 더해야</b> 클라이언트가 겪은 시간과 맞습니다.</p><div class="codewrap"><div class="cap"><span>프롬프트 에이전트 — 5분 단위 실행 수 · 지연(ms)</span><span></span></div><button class="copy" type="button">복사</button><pre class="code" data-run="C2"><code>kq '
+dependencies
+| where timestamp &gt; ago(1h)
+| where cloud_RoleName == "responsesapi" and customDimensions["gen_ai.operation.name"] == "invoke_agent"
+| where customDimensions["gen_ai.agent.name"] == "report-prompt-agent"
+| summarize runs = count(), failed = countif(success == false), p50_ms = round(percentile(duration, 50)), p95_ms = round(percentile(duration, 95)), max_ms = round(max(duration)) by bin(timestamp, 5m)
+| order by timestamp desc
+'</code></pre></div><div class="expect"><div class="lbl">예상 결과</div><pre>timestamp             runs  failed  p50_ms  p95_ms  max_ms
+--------------------  ----  ------  ------  ------  ------
+2026-10-24T00:55:00Z  8     0       927     3089    3089  </pre></div><div class="codewrap"><div class="cap"><span>호스티드 에이전트 — 5분 단위 실행 수 · cold 수 · 시작 지연 포함 총 시간(ms)</span><span></span></div><button class="copy" type="button">복사</button><pre class="code" data-run="C2"><code>kq '
+requests
+| where timestamp &gt; ago(1h) and cloud_RoleName == "agentsv2" and customDimensions["gen_ai.agent.name"] == "report-maf-agent"
+| extend start_type = tostring(customDimensions["hosted_agent.latency.start_type"]),
+    startup_ms = coalesce(toint(customDimensions["hosted_agent.latency.platform_preprocessing_ms"]), 0) + coalesce(toint(customDimensions["hosted_agent.latency.infra_setup_ms"]), 0) + coalesce(toint(customDimensions["hosted_agent.latency.container_readiness_ms"]), 0)
+| extend total_ms = duration + startup_ms
+| summarize runs = count(), cold = countif(start_type == "cold"), p50_total_ms = round(percentile(total_ms, 50)), p95_total_ms = round(percentile(total_ms, 95)), p50_run_ms = round(percentile(duration, 50)) by bin(timestamp, 5m)
+| order by timestamp desc
+'</code></pre></div><div class="expect"><div class="lbl">예상 결과</div><pre>timestamp             runs  cold  p50_total_ms  p95_total_ms  p50_run_ms
+--------------------  ----  ----  ------------  ------------  ----------
+2026-10-24T00:55:00Z  10    5     4377          11424         2120      </pre></div></div><div class="step" id="c3"><h3><span class="badge">C3</span><span>느린 호출은 어디서 느린가 — 모델 · 에이전트 런타임 · cold start</span></h3><p class="meta">원본 가이드의 C2(앱 vs AOAI 대조)에 해당</p><p>원본에서는 <b>앱이 잰 시간과 AOAI 가 잰 시간의 차이</b>로 “느린 곳이 앱 쪽인가 AOAI 쪽인가”를 가렸습니다. 여기서는 같은 질문을 두 쿼리로 풉니다.</p><ul><li><b>프롬프트 에이전트</b>: <code>invoke_agent</code>(실행 전체) − <code>chat</code>(모델 호출) = <b>에이전트 런타임 오버헤드</b>. 정상일 때는 수백 ms 입니다.</li><li><b>호스티드 에이전트</b>: 시작 지연을 4단계(<code>platform_preprocessing · infra_setup · container_readiness · container_response</code>)로 쪼갠 속성이 요청 스팬에 자동으로 붙습니다.</li></ul><div class="codewrap"><div class="cap"><span>프롬프트 에이전트 — 모델 시간을 뺀 오버헤드가 큰 실행 TOP 10</span><span></span></div><button class="copy" type="button">복사</button><pre class="code" data-run="C3"><code>kq '
+let spans = dependencies
+    | where timestamp &gt; ago(1h) and cloud_RoleName == "responsesapi" and customDimensions["gen_ai.agent.name"] == "report-prompt-agent";
+spans
+| where customDimensions["gen_ai.operation.name"] == "invoke_agent"
+| project operation_Id, timestamp, run_ms = duration
+| join kind = inner (spans | where customDimensions["gen_ai.operation.name"] == "chat" | project operation_Id, model_ms = duration) on operation_Id
+| extend overhead_ms = run_ms - model_ms
+| top 10 by overhead_ms desc
+| project timestamp, trace_id = operation_Id, run_ms = round(run_ms), model_ms = round(model_ms), overhead_ms = round(overhead_ms)
+'</code></pre></div><div class="expect"><div class="lbl">예상 결과</div><pre>timestamp                     trace_id                          run_ms  model_ms  overhead_ms
+----------------------------  --------------------------------  ------  --------  -----------
+2026-10-24T00:58:00.6529005Z  62bbebec50ccdaceaa8a311c9e84b022  2576    2241      335        
+2026-10-24T00:57:47.361056Z   25968e88fe5e45c980c1550c8d5614ad  1023    707       316        
+2026-10-24T00:57:57.0811892Z  ae4aa75e0c5c199329776b52d3fd859f  3089    2808      281        
+2026-10-24T00:57:50.1663871Z  53966f183fbb873bcd41f0511d968eb0  979     700       278        
+2026-10-24T00:57:48.8551231Z  a73c52d396e6b6787607951b6478c30e  874     673       201        
+2026-10-24T00:56:38.1726212Z  0a6b22de34128aa71126bd3e8629b397  729     638       91         
+2026-10-24T00:57:51.5034652Z  c76e4e21797926b7a211916aaff20042  927     849       78         
+2026-10-24T00:57:52.8154885Z  329aceffa4be7048fd7ee4d25dbd7919  693     621       72         </pre></div><div class="codewrap"><div class="cap"><span>호스티드 에이전트 — cold / warm 별 시작 지연 구성(평균 ms)</span><span></span></div><button class="copy" type="button">복사</button><pre class="code" data-run="C3"><code>kq '
+requests
+| where timestamp &gt; ago(1h) and cloud_RoleName == "agentsv2" and customDimensions["gen_ai.agent.name"] == "report-maf-agent"
+| summarize runs = count(), preprocess_ms = round(avg(coalesce(todouble(customDimensions["hosted_agent.latency.platform_preprocessing_ms"]), 0.0))), infra_ms = round(avg(coalesce(todouble(customDimensions["hosted_agent.latency.infra_setup_ms"]), 0.0))), readiness_ms = round(avg(coalesce(todouble(customDimensions["hosted_agent.latency.container_readiness_ms"]), 0.0))), run_ms = round(avg(duration)) by start_type = tostring(customDimensions["hosted_agent.latency.start_type"])
+'</code></pre></div><div class="expect"><div class="lbl">예상 결과</div><pre>start_type  runs  preprocess_ms  infra_ms  readiness_ms  run_ms
+----------  ----  -------------  --------  ------------  ------
+cold        5     127            1252      5867          3172  
+warm        5     108            0         0             2259  </pre></div><div class="callout"><div class="lbl">읽는 법</div><ul><li>호스티드 <code>cold</code> 의 시간은 대부분 <b>infra_setup(세션 샌드박스 준비) + container_readiness(컨테이너 기동)</b> — 합치면 약 7초 — 이고, 모델 호출은 그 뒤 1초 안팎입니다.</li><li>프롬프트 에이전트는 대부분 오버헤드가 수백 ms 이하입니다. 그런데 이번 검증의 28건 중 1건은 <b>모델 호출은 1초 미만(정상)인데 실행 전체가 약 10초</b>였습니다(위 예시 출력에는 없는, 다른 실행에서 나온 값) — 위 쿼리의 오버헤드 열이 바로 그 차이이며, 원인은 모델이 아니라 에이전트 런타임입니다(쉬었다 온 호출이었다는 점 외에 재현 조건은 확인하지 못했습니다). 느린 호출을 만나면 모델 쪽부터 의심하지 말고 이 열부터 보세요.</li><li>그래서 호스티드 에이전트를 쓸 때는 <b>세션(대화)을 재사용</b>하고 idle 시간을 맞추는 설계가 지연에 직접 영향을 줍니다(<code>invoke_agents.py … same</code>).</li></ul></div></div><div class="step" id="c4"><h3><span class="badge">C4</span><span>요청 한 건 따라가기 — trace_id · 응답 ID</span></h3><p class="meta">원본 가이드의 C2 요청 단위 조인에 해당</p><p>클라이언트가 <code>traceparent</code> 로 정한 <code>trace_id</code> 는 서버 쪽 <b>모든 스팬 · 컨테이너 로그의 <code>operation_Id</code></b> 입니다. 호스티드 에이전트 한 건(첫 호출 = cold)을 따라가 봅니다.</p><div class="codewrap"><div class="cap"><span>trace_id 한 건 — 플랫폼 · 컨테이너 스팬과 컨테이너 로그를 시간순으로</span><span></span></div><button class="copy" type="button">복사</button><pre class="code" data-run="C4"><code>TID=$(grep report-maf-agent calls.jsonl | head -1 | python3 -c 'import json,sys; print(json.loads(sys.stdin.read())["trace_id"])')
+kq "$(sed "s/&lt;trace_id&gt;/$TID/" &lt;&lt;'KQL'
+let tid = "&lt;trace_id&gt;";
+union requests, dependencies, traces
+| where operation_Id == tid
+| project timestamp, itemType, role = cloud_RoleName, name = coalesce(name, substring(message, 0, 80)), duration_ms = round(duration), success
+| order by timestamp asc
+KQL
+)"</code></pre></div><div class="expect"><div class="lbl">예상 결과</div><pre>timestamp                     itemType    role              name                                                                    duration_ms  success
+----------------------------  ----------  ----------------  ----------------------------------------------------------------------  -----------  -------
+2026-10-24T00:58:13.152148Z   trace       report-maf-agent  Inbound GET /readiness started (trace-id: ae0d8e2df34d386e1ccc09fe4019                      
+2026-10-24T00:58:13.153029Z   trace       report-maf-agent  192.168.0.1:49538 "GET /readiness 1.1" 200 20 1036μs                                        
+2026-10-24T00:58:13.153292Z   trace       report-maf-agent  Inbound GET /readiness completed with status 200 in 0.8ms (trace-id: a                      
+2026-10-24T00:58:13.2004733Z  request     agentsv2          invoke_agent                                                            3003         True   
+2026-10-24T00:58:13.207291Z   trace       report-maf-agent  Inbound POST /responses started (x-request-id: ae0d8e2df34d386e1ccc09f                      
+2026-10-24T00:58:13.20975Z    trace       report-maf-agent  Creating response caresp_09c8f9aaf22630e300sVvqCHmnDJCXsIvJKxKoaMPbTIW                      
+2026-10-24T00:58:13.210128Z   trace       report-maf-agent  Invoking handler ResponsesAgentServerHost._dispatch_create for respons                      
+2026-10-24T00:58:13.210517Z   trace       report-maf-agent  Resilient task subsystem not enabled for response caresp_09c8f9aaf2263                      
+2026-10-24T00:58:13.313123Z   trace       report-maf-agent  DefaultAzureCredential acquired a token from ManagedIdentityCredential                      
+2026-10-24T00:58:13.489513Z   trace       report-maf-agent  Foundry storage POST ***/storage/responses?api-version=v1 -&gt; 201 (176.                      
+2026-10-24T00:58:13.490911Z   dependency  report-maf-agent  invoke_agent &lt;guid&gt;                       1987         True   
+2026-10-24T00:58:13.498851Z   dependency  report-maf-agent  chat gpt-5.4-mini                                                       1977         True   
+2026-10-24T00:58:14.51589Z    trace       report-maf-agent  DefaultAzureCredential acquired a token from ManagedIdentityCredential                      
+2026-10-24T00:58:14.517451Z   dependency  report-maf-agent  POST /api/projects/fdmon-&lt;접미사&gt;/openai/v1/responses                      576          True   
+…</pre></div><p>trace_id 를 잃어버렸다면 클라이언트가 받은 <b>응답 ID</b>(프롬프트 <code>resp_…</code> · 호스티드 <code>caresp_…</code>)로도 찾을 수 있습니다.</p><div class="codewrap"><div class="cap"><span>응답 ID 로 서버 쪽 기록 찾기</span><span></span></div><button class="copy" type="button">복사</button><pre class="code" data-run="C4"><code>RID=$(grep report-prompt-agent calls.jsonl | tail -1 | python3 -c 'import json,sys; print(json.loads(sys.stdin.read())["response_id"])')
+kq "$(sed "s/&lt;response_id&gt;/$RID/" &lt;&lt;'KQL'
+let rid = "&lt;response_id&gt;";
+union requests, dependencies
+| where tostring(customDimensions["gen_ai.response.id"]) == rid or tostring(customDimensions["azure.ai.agentserver.response_id"]) == rid
+| project timestamp, itemType, role = cloud_RoleName, name, duration_ms = round(duration), trace_id = operation_Id
+KQL
+)"</code></pre></div><div class="expect"><div class="lbl">예상 결과</div><pre>timestamp                     itemType    role          name                                duration_ms  trace_id                        
+----------------------------  ----------  ------------  ----------------------------------  -----------  --------------------------------
+2026-10-24T00:58:00.6532499Z  dependency  responsesapi  chat gpt-5.4-mini-2026-03-17        2241         62bbebec50ccdaceaa8a311c9e84b022
+2026-10-24T00:58:00.6529005Z  dependency  responsesapi  invoke_agent report-prompt-agent:1  2576         62bbebec50ccdaceaa8a311c9e84b022</pre></div></div><div class="step" id="c5"><h3><span class="badge">C5</span><span>토큰 · 모델 쪽 메트릭</span></h3><p class="meta">원본 가이드의 R1(토큰) · R2(메트릭)에 해당</p><p>토큰 수는 플랫폼 <code>chat</code> 스팬에 있고(원본에서는 AOAI 진단 로그의 <code>properties_s</code>), 모델 쪽 서비스 메트릭(요청 수 · 토큰 · 응답 완료 시간)은 <b>진단 설정 없이 Foundry 리소스에 이미 쌓입니다</b>(메트릭 정의 99개). 로그(<code>RequestResponse</code> 등)가 필요할 때만 원본 R1 의 진단 설정을 같은 방식으로 추가하면 됩니다.</p><div class="codewrap"><div class="cap"><span>에이전트 · 모델별 시간당 토큰 사용량</span><span></span></div><button class="copy" type="button">복사</button><pre class="code" data-run="C5"><code>kq '
+dependencies
+| where timestamp &gt; ago(24h) and cloud_RoleName == "responsesapi" and customDimensions["gen_ai.operation.name"] == "chat"
+| summarize calls = count(), input_tokens = sum(toint(customDimensions["gen_ai.usage.input_tokens"])), output_tokens = sum(toint(customDimensions["gen_ai.usage.output_tokens"])), avg_model_ms = round(avg(duration)) by agent = tostring(customDimensions["gen_ai.agent.name"]), model = tostring(customDimensions["gen_ai.response.model"]), bin(timestamp, 1h)
+| order by timestamp desc
+'</code></pre></div><div class="expect"><div class="lbl">예상 결과</div><pre>agent                model                    timestamp             calls  input_tokens  output_tokens  avg_model_ms
+-------------------  -----------------------  --------------------  -----  ------------  -------------  ------------
+report-maf-agent     gpt-5.4-mini-2026-03-17  2026-10-24T01:00:00Z  4      160           180            758         
+report-prompt-agent  gpt-5.4-mini-2026-03-17  2026-10-24T00:00:00Z  8      329           837            1155        
+report-maf-agent     gpt-5.4-mini-2026-03-17  2026-10-24T00:00:00Z  10     1381          906            1006        </pre></div><div class="codewrap"><div class="cap"><span>Foundry 리소스의 모델 메트릭 — 설정 없이 조회 (시각 · 합계 · 평균). 메트릭은 7~10분 늦게 보입니다</span><span></span></div><button class="copy" type="button">복사</button><pre class="code" data-run="C5"><code>ACCT_ID=$(az cognitiveservices account show -g "$AZURE_RESOURCE_GROUP" -n "$AZURE_AI_ACCOUNT_NAME" --query id -o tsv)
+az monitor metrics list --resource "$ACCT_ID" --metric AzureOpenAIRequests ProcessedPromptTokens GeneratedTokens AzureOpenAITTLTInMS \
+  --interval PT5M --offset 1h --aggregation Total Average -o json | python3 -c '
+import json, sys
+for m in json.load(sys.stdin)["value"]:
+    pts = [(p["timeStamp"][11:16], round(p["total"]), round(p["average"])) for p in m["timeseries"][0]["data"] if p.get("total")]
+    print(m["name"]["value"].ljust(24), pts[:6])'</code></pre></div><div class="expect"><div class="lbl">예상 결과</div><pre>AzureOpenAIRequests      [('00:54', 8, 1), ('00:59', 13, 1)]
+ProcessedPromptTokens    [('00:54', 323, 40), ('00:59', 1507, 116)]
+GeneratedTokens          [('00:54', 618, 77), ('00:59', 1263, 97)]
+AzureOpenAITTLTInMS      [('00:54', 8877, 1110), ('00:59', 16002, 1231)]</pre></div></div><div class="step" id="c6"><h3><span class="badge">C6</span><span>포털에서 보는 곳</span></h3><p class="meta">화면 확인은 이 가이드에서 하지 못했습니다 — 문서 기준</p><p>같은 데이터를 Foundry 포털이 그대로 보여 줍니다(문서 기준). 이 가이드의 실습 계정으로는 포털 화면까지 열어 보지 못했고, <b>데이터가 같은 Application Insights 에 있다는 것</b>까지 확인했습니다.</p><table class="nw"><thead><tr><th>보고 싶은 것</th><th>Foundry 포털 위치 (New Foundry)</th><th>이 가이드의 대응</th></tr></thead><tbody><tr><td>요청 한 건의 단계별 스팬 · 입출력 · 도구 호출</td><td>프로젝트 → <b>Agents → Traces</b> (90일 · Conversation 상세)</td><td>C4 <code>trace_by_id</code></td></tr><tr><td>에이전트별 토큰 · 지연 · 실행 성공률</td><td>Build → 에이전트 → <b>Monitor</b> 탭 (프리뷰)</td><td>C2 · C5 쿼리</td></tr><tr><td>알림(지연 · 토큰 · 평가 점수)</td><td>Monitor → 설정(톱니) → <b>Alerts</b> (프리뷰)</td><td>D1 <code>alerts.sh</code> (KQL 알림)</td></tr><tr><td>여러 프로젝트 · 에이전트 한눈에</td><td>우측 상단 <b>Operate</b> → Overview · Assets</td><td>—</td></tr></tbody></table><div class="callout warn"><div class="lbl">트레이스를 보려면 권한이 따로 필요합니다</div><p>포털에서 트레이스를 보려면 <b>연결된 Application Insights 에 대한 Log Analytics Reader</b> 가 있어야 합니다. 호출은 <b>Foundry User</b>(구 Azure AI User) 역할이 있어야 됩니다 — <code>connect-appinsights.sh</code> 가 두 역할을 모두 부여합니다.</p></div></div></section><section id="d"><h2>D · 알림 · 장애 재현<small>원본 가이드의 R8 과 같은 알림이 에이전트에서도 울리는지 확인합니다</small></h2><div class="step" id="d1"><h3><span class="badge">D1</span><span>알림 2개 만들기 — 느린 실행 · 실패한 실행</span></h3><p class="meta">소요 약 15초 · 원본 가이드의 R8 에 해당</p><p>Application Insights 를 대상으로 하는 <b>로그 알림 2개</b>와 수신 그룹을 만듭니다. 느린 실행은 <b>cold start 시간을 더한 총 시간이 8초를 넘는 실행</b>(프롬프트 · 호스티드 공통), 실패한 실행은 <b>실패한 GenAI 스팬</b>입니다. 텔레메트리가 늦게 도착해도 놓치지 않도록 평가 창(15분)을 평가 주기(5분)보다 길게 잡았습니다 — 같은 사건이 최대 3번 평가됩니다.</p><div class="codewrap"><div class="cap"><span>foundry/scripts/alerts.sh</span><span></span></div><button class="copy" type="button">복사</button><pre class="code"><code><span class="c">#!/bin/sh</span>
+<span class="c"># 에이전트 알림 2개: 느린 실행(콜드 스타트 포함 8초 초과) · 실패한 실행. 사용: MAIL=&lt;수신 이메일&gt; sh scripts/alerts.sh</span>
+<span class="c"># 텔레메트리가 늦게 도착해도 놓치지 않도록 평가 창(15분)을 평가 주기(5분)보다 길게 잡았다 — 같은 사건이 최대 3번 평가된다.</span>
+set -eu
+RG="$AZURE_RESOURCE_GROUP"; APPI_ID=$(az monitor app-insights component show -g "$RG" -a "appi-$AZURE_ENV_NAME" --query id -o tsv)
+az monitor action-group create -g "$RG" -n ag-agent-latency --short-name agentlat --action email owner "$MAIL" -o none
+AG=$(az monitor action-group show -g "$RG" -n ag-agent-latency --query id -o tsv)
+
+SLOW=$(cat &lt;&lt;'KQL'
+let hosted = requests | where cloud_RoleName == "agentsv2" | distinct agent = tostring(customDimensions["gen_ai.agent.name"]);
+union
+  (requests | where cloud_RoleName == "agentsv2" and customDimensions["gen_ai.operation.name"] == "invoke_agent"
+   | project total_ms = duration + coalesce(toint(customDimensions["hosted_agent.latency.platform_preprocessing_ms"]), 0) + coalesce(toint(customDimensions["hosted_agent.latency.infra_setup_ms"]), 0) + coalesce(toint(customDimensions["hosted_agent.latency.container_readiness_ms"]), 0)),
+  (dependencies | where cloud_RoleName == "responsesapi" and customDimensions["gen_ai.operation.name"] == "invoke_agent" and tostring(customDimensions["gen_ai.agent.name"]) !in (hosted)
+   | project total_ms = duration)
+| where total_ms &gt; 8000
+KQL
+)
+FAILED='dependencies | where success == false and isnotempty(customDimensions["gen_ai.operation.name"])'
+
+az monitor scheduled-query create -g "$RG" -n agent-run-slow --scopes "$APPI_ID" --action-groups "$AG" -o none \
+  --condition "count 'Q' &gt; 0" --condition-query Q="$SLOW" --window-size 15m --evaluation-frequency 5m --severity 3
+az monitor scheduled-query create -g "$RG" -n agent-run-failed --scopes "$APPI_ID" --action-groups "$AG" -o none \
+  --condition "count 'Q' &gt; 0" --condition-query Q="$FAILED" --window-size 15m --evaluation-frequency 5m --severity 2</code></pre></div><div class="codewrap"><div class="cap"><span>알림 만들기 (수신 메일은 MAIL)</span><span></span></div><button class="copy" type="button">복사</button><pre class="code" data-run="D1"><code>MAIL="&lt;알림 받을 이메일&gt;" sh scripts/alerts.sh
+az monitor scheduled-query list -g "$AZURE_RESOURCE_GROUP" --query "[].{name:name, every:evaluationFrequency, window:windowSize, severity:severity}" -o table</code></pre></div><div class="expect"><div class="lbl">예상 결과</div><pre>Name              Every    Window    Severity
+----------------  -------  --------  ----------
+agent-run-slow    0:05:00  0:15:00   3
+agent-run-failed  0:05:00  0:15:00   2</pre></div></div><div class="step" id="d2"><h3><span class="badge">D2</span><span>장애 만들기 — 느린 실행 · 실패한 실행</span></h3><p class="meta">소요 약 4분</p><p>알림이 울리는지 보려고 일부러 두 가지를 만듭니다. ① 호출마다 새 세션을 만들어 <b>cold start 로 느린 실행</b>, ② 호스티드 에이전트의 모델 배포 이름에 <b>오타</b>를 내고 새 버전을 배포해 <b>실패하는 실행</b>(원본 가이드의 “없는 배포 이름 → 404” 와 같은 실수).</p><div class="codewrap"><div class="cap"><span>느린 호출 3번 → 오타 난 버전 배포 → 실패하는 호출 3번</span><span></span></div><button class="copy" type="button">복사</button><pre class="code" data-run="D2"><code>python invoke_agents.py report-maf-agent 3 short new | tee -a calls.jsonl                  # ① 느린 실행 (cold start)
+azd env set AZURE_AI_MODEL_DEPLOYMENT_NAME no-such-deployment                                  # ② 오타 난 배포 이름으로
+azd deploy report-maf-agent                                                                    #    새 버전 배포 (약 1분)
+python invoke_agents.py report-maf-agent 3 short new | tee -a calls.jsonl                  #    호출 → 실패</code></pre></div><div class="expect"><div class="lbl">예상 결과</div><pre>{"agent": "report-maf-agent", "i": 1, "ms": 11632, "status": "completed", "response_id": "caresp_03bc34580aeb308a00tFofOV55FFK7l8YZ9l0rl7GN2BXcF2Rl", "trace_id": "e2455e04a79c326fa66ea8a52fe6b739", "input_tokens": 40, "output_tokens": 47, "error": null}
+{"agent": "report-maf-agent", "i": 2, "ms": 8718, "status": "completed", "response_id": "caresp_0f42c8fbaffcc75400Jx0tKPnU3Ui89SK4DSxfBBfNxvMM6rFM", "trace_id": "de6fe480213354150507dd9bf9be4c93", "input_tokens": 40, "output_tokens": 43, "error": null}
+{"agent": "report-maf-agent", "i": 3, "ms": 8628, "status": "completed", "response_id": "caresp_08e29281428e876200NLSSYP8otOiRJVxFnUTIyE2XGNeFekAm", "trace_id": "e38b9f72fab1fe61b8ace7f0a2349ebb", "input_tokens": 40, "output_tokens": 48, "error": null}
+SUCCESS: Your application was deployed to Azure in 1 minute.
+{"agent": "report-maf-agent", "i": 1, "ms": 9917, "status": "failed", "response_id": "caresp_0735af566c79336e003Jx6l7DJYMyoS8t0JAtyuS40lgplX4fi", "trace_id": "40bdd28c54668dc65e92973c85a5a7fc", "input_tokens": null, "output_tokens": null, "error": "An internal server error occurred."}
+{"agent": "report-maf-agent", "i": 2, "ms": 8526, "status": "failed", "response_id": "caresp_068030908b0e518400RfUW7RDFy5jddiXzQJcwnop1KkiRH10T", "trace_id": "497531e1263b4b54651c4201e69a7eb0", "input_tokens": null, "output_tokens": null, "error": "An internal server error occurred."}
+{"agent": "report-maf-agent", "i": 3, "ms": 8118, "status": "failed", "response_id": "caresp_01aa83f6a59ea4c800VzTMEd4EvhLfChXb1x5JXfgxzUUJaBiI", "trace_id": "d441534eca95adc8823890eddc016bfc", "input_tokens": null, "output_tokens": null, "error": "An internal server error occurred."}</pre></div><div class="callout warn"><div class="lbl">실패해도 HTTP 는 200 입니다</div><p>호스티드 에이전트가 모델 호출에 실패해도 응답은 <b>HTTP 200 + <code>status: failed</code></b> 이고 오류 메시지는 <code>An internal server error occurred.</code> 한 줄뿐입니다. 진짜 원인(<code>DeploymentNotFound</code>)은 서버 트레이스에서만 보입니다 — 클라이언트 로그만으로는 알 수 없습니다.</p></div></div><div class="step" id="d3"><h3><span class="badge">D3</span><span>알림 확인 · 실패 원인 보기</span></h3><p class="meta">알림은 장애를 만든 뒤 보통 5~6분 안에 울립니다 (최대 약 20분 대기)</p><p>알림이 울릴 때까지 기다린 뒤, 알림이 가리키는 실패를 트레이스에서 찾아봅니다. 실패한 실행은 <b>요청(<code>requests</code>) 스팬이 아니라 <code>dependencies</code> · <code>exceptions</code> 에 남습니다</b> — 아래 두 번째 쿼리가 그 점을 보여 줍니다.</p><div class="codewrap"><div class="cap"><span>① 발화한 알림 (30초 간격으로 확인)</span><span></span></div><button class="copy" type="button">복사</button><pre class="code" data-run="D3"><code>SUB_ID=$(az account show --query id -o tsv)
+for i in $(seq 1 40); do
+  az rest --method get --url "https://management.azure.com/subscriptions/$SUB_ID/providers/Microsoft.AlertsManagement/alerts?api-version=2019-05-05-preview&amp;targetResourceGroup=$AZURE_RESOURCE_GROUP" \
+    --query "value[].{rule:properties.essentials.alertRule, state:properties.essentials.monitorCondition, severity:properties.essentials.severity, fired:properties.essentials.startDateTime}" -o tsv | sed 's#.*/scheduledqueryrules/##' &gt; alerts.txt
+  [ "$(grep -c Fired alerts.txt)" -ge 2 ] &amp;&amp; break; sleep 30
+done
+cat alerts.txt</code></pre></div><div class="expect"><div class="lbl">예상 결과</div><pre>agent-run-failed	Fired	Sev2	2026-10-24T01:06:44.6160369Z
+agent-run-slow	Fired	Sev3	2026-10-24T01:02:55.5550473Z</pre></div><div class="codewrap"><div class="cap"><span>② 실패한 실행 — 실패한 GenAI 스팬 + 예외 (최근 1시간)</span><span></span></div><button class="copy" type="button">복사</button><pre class="code" data-run="D3"><code>kq '
+union
+    (dependencies | where timestamp &gt; ago(1h) and success == false and isnotempty(customDimensions["gen_ai.operation.name"]) | project timestamp, itemType, role = cloud_RoleName, name, code = resultCode, trace_id = operation_Id),
+    (exceptions | where timestamp &gt; ago(1h) and outerMessage !has "A365" | project timestamp, itemType, role = cloud_RoleName, name = type, code = "", trace_id = operation_Id)
+| order by timestamp desc
+'</code></pre></div><div class="expect"><div class="lbl">예상 결과</div><pre>timestamp                    itemType    role              name                                               code  trace_id                        
+---------------------------  ----------  ----------------  -------------------------------------------------  ----  --------------------------------
+2026-10-24T01:02:12.313458Z  exception   report-maf-agent  ChatClientException                                      d441534eca95adc8823890eddc016bfc
+2026-10-24T01:02:12.095742Z  exception   report-maf-agent  ChatClientException                                      d441534eca95adc8823890eddc016bfc
+2026-10-24T01:02:12.092291Z  exception   report-maf-agent  agent_framework.exceptions.ChatClientException           d441534eca95adc8823890eddc016bfc
+2026-10-24T01:02:12.08722Z   exception   report-maf-agent  agent_framework.exceptions.ChatClientException           d441534eca95adc8823890eddc016bfc
+2026-10-24T01:02:11.775034Z  dependency  report-maf-agent  chat no-such-deployment                            0     d441534eca95adc8823890eddc016bfc
+2026-10-24T01:02:11.76726Z   dependency  report-maf-agent  invoke_agent &lt;guid&gt;  0     d441534eca95adc8823890eddc016bfc
+2026-10-24T01:02:04.20546Z   exception   report-maf-agent  ChatClientException                                      497531e1263b4b54651c4201e69a7eb0
+2026-10-24T01:02:03.928352Z  exception   report-maf-agent  ChatClientException                                      497531e1263b4b54651c4201e69a7eb0
+2026-10-24T01:02:03.924901Z  exception   report-maf-agent  agent_framework.exceptions.ChatClientException           497531e1263b4b54651c4201e69a7eb0
+2026-10-24T01:02:03.919694Z  exception   report-maf-agent  agent_framework.exceptions.ChatClientException           497531e1263b4b54651c4201e69a7eb0
+2026-10-24T01:02:02.98839Z   dependency  report-maf-agent  chat no-such-deployment                            0     497531e1263b4b54651c4201e69a7eb0
+2026-10-24T01:02:02.980756Z  dependency  report-maf-agent  invoke_agent &lt;guid&gt;  0     497531e1263b4b54651c4201e69a7eb0
+…</pre></div><div class="codewrap"><div class="cap"><span>③ 같은 시간 requests 의 success — 실패한 버전(오타 난 배포 이름)도 success_false 가 0</span><span></span></div><button class="copy" type="button">복사</button><pre class="code" data-run="D3"><code>kq '
+requests
+| where timestamp &gt; ago(1h) and cloud_RoleName == "agentsv2" and customDimensions["gen_ai.agent.name"] == "report-maf-agent"
+| summarize requests = count(), success_false = countif(success == false) by version = tostring(customDimensions["agent.version"])
+| order by version asc
+'</code></pre></div><div class="expect"><div class="lbl">예상 결과</div><pre>version  requests  success_false
+-------  --------  -------------
+1        13        0            
+2        3         0            
+3        1         0            </pre></div><div class="codewrap"><div class="cap"><span>④ 실패 원인 — 컨테이너 예외 메시지에 진짜 이유(404 DeploymentNotFound)가 있습니다</span><span></span></div><button class="copy" type="button">복사</button><pre class="code" data-run="D3"><code>kq '
+exceptions
+| where timestamp &gt; ago(1h) and outerMessage has "Error code"
+| summarize timestamp = max(timestamp), http = take_any(extract(@"Error code: (\d+)", 1, outerMessage)), code = take_any(extract(@"code.: .(\w+)", 1, outerMessage)), message = take_any(extract(@"message.: .([^.]+)", 1, outerMessage)) by trace_id = operation_Id
+| order by timestamp desc
+'</code></pre></div><div class="expect"><div class="lbl">예상 결과</div><pre>trace_id                          timestamp                    http  code                message                                            
+--------------------------------  ---------------------------  ----  ------------------  ---------------------------------------------------
+d441534eca95adc8823890eddc016bfc  2026-10-24T01:02:12.092291Z  404   DeploymentNotFound  The API deployment for this resource does not exist
+497531e1263b4b54651c4201e69a7eb0  2026-10-24T01:02:03.924901Z  404   DeploymentNotFound  The API deployment for this resource does not exist
+40bdd28c54668dc65e92973c85a5a7fc  2026-10-24T01:01:55.345078Z  404   DeploymentNotFound  The API deployment for this resource does not exist</pre></div><div class="callout"><div class="lbl">알림 · 실패 쿼리를 이렇게 짠 이유</div><ul><li>실패 알림은 <code>requests</code> 의 <code>success</code> 를 보면 <b>놓칩니다</b>(③). <code>dependencies</code> 의 <code>success == false</code> 를 봅니다.</li><li>실행이 시작되기 전에 거절된 호출(예: 없는 에이전트 · 없는 모델 배포로 만든 프롬프트 에이전트의 404)은 <b>트레이스에 남지 않습니다</b> — 별도 실험에서 오타 난 모델로 만든 프롬프트 에이전트를 2번 불렀을 때 모든 테이블이 비어 있었습니다(이 가이드의 실행 블록에는 없음). 이런 실패는 클라이언트 쪽 로그(<code>invoke_agents.py</code> 의 status · error)로 잡아야 합니다.</li></ul></div></div><div class="step" id="d4"><h3><span class="badge">D4</span><span>복구 · 알림 끄기</span></h3><p class="meta">소요 약 2분</p><p>배포 이름을 되돌려 새 버전으로 복구하고, 실습이 끝났으면 알림을 끕니다(켜 두면 평가마다 메일이 올 수 있습니다).</p><div class="codewrap"><div class="cap"><span>복구(새 버전) → 정상 호출 확인 → 알림 끄기</span><span></span></div><button class="copy" type="button">복사</button><pre class="code" data-run="D4"><code>azd env set AZURE_AI_MODEL_DEPLOYMENT_NAME gpt-5.4-mini
+azd deploy report-maf-agent
+python invoke_agents.py report-maf-agent 1 short new
+for a in agent-run-slow agent-run-failed; do az monitor scheduled-query update -g "$AZURE_RESOURCE_GROUP" -n $a --disabled true --query "{name:name, enabled:enabled}" -o tsv; done</code></pre></div><div class="expect"><div class="lbl">예상 결과</div><pre>SUCCESS: Your application was deployed to Azure in 59 seconds.
+{"agent": "report-maf-agent", "i": 1, "ms": 10285, "status": "completed", "response_id": "caresp_00c817f0360b876400Et8waJyFMDXLj5f155ZhUJhNITR76KDb", "trace_id": "b1b8b9c27a9cf8667f00ae5472526e30", "input_tokens": 40, "output_tokens": 42, "error": null}
+agent-run-slow	False
+agent-run-failed	False</pre></div></div></section><section id="e"><h2>E · 비교 정리와 삭제<small>R1~R8 대응표 · 판단 기준 · 정리</small></h2><div class="step" id="e1"><h3><span class="badge">E1</span><span>R1~R8 은 어디로 갔나 · 언제 어느 쪽을 쓰나</span></h3><p class="meta">설정 코드 234줄 → 35줄 (−85%)</p><table class="nw"><thead><tr><th>원본 가이드</th><th>줄 수</th><th>Foundry 에이전트에서는</th></tr></thead><tbody><tr><td>R1 AOAI 진단 설정</td><td>8줄</td><td><b>불필요</b> — 요청 단위 지연 · 토큰 · 상태는 에이전트 트레이스가 대신(C2~C5). 서비스 쪽 로그가 더 필요하면 Foundry 리소스에 같은 진단 설정을 추가(범주 <code>RequestResponse</code> 등 확인 · 이 가이드는 미적용)</td></tr><tr><td>R2 AOAI 메트릭</td><td>—</td><td><b>자동</b> — 설정 없이 Foundry 리소스에 쌓임 (C5)</td></tr><tr><td>R3 앱 호출 로그</td><td>54줄</td><td><b>불필요</b> — 플랫폼 스팬이 대신. 클라이언트가 잰 시간이 필요하면 <code>invoke_agents.py</code>(39줄, 선택)</td></tr><tr><td>R4 Application Insights(OTel)</td><td>12줄</td><td><b>연결 1회</b> — <code>connect-appinsights.sh</code> 16줄. 에이전트 코드에는 OTel 코드 없음</td></tr><tr><td>R5 VM 에이전트 · DCR</td><td>33줄</td><td><b>해당 없음</b> — VM 이 없음</td></tr><tr><td>R6 네트워크 경로 로그</td><td>23줄</td><td><b>해당 없음</b> — 모델까지의 경로는 Foundry 내부. 클라이언트 → Foundry 구간만 클라이언트에서 측정</td></tr><tr><td>R7 합성 probe</td><td>84줄</td><td><b>선택</b> — cold start · idle 지연은 트레이스로 직접 보임(C3). 정기 점검이 필요하면 <code>invoke_agents.py</code> 를 스케줄러로 호출</td></tr><tr><td>R8 알림</td><td>20줄</td><td><code>alerts.sh</code> 19줄 (D1). Foundry 포털의 Alerts(프리뷰)도 있으나 이 가이드에서 확인하지 못함</td></tr><tr><td><b>합계</b></td><td><b>234줄</b></td><td><b>35줄</b> (+ 에이전트 코드 16줄 · azure.yaml 55줄은 모니터링이 아니라 에이전트 정의)</td></tr></tbody></table><div class="callout"><div class="lbl">판단 기준</div><ul><li><b>이미 운영 중인 VM 앱을 그대로 두어야 한다</b> → 원본 가이드(R1~R8). 엔드포인트만 Foundry 로 바꿔도 에이전트 트레이스는 생기지 않습니다.</li><li><b>모델 호출 + 지시문 정도의 앱</b>을 옮길 수 있다 → <b>프롬프트 에이전트</b>가 가장 단순합니다(코드 · 서버 없음, 추가 요금 없음 · 토큰 비용만).</li><li><b>도구 · 오케스트레이션 코드가 필요하다</b> → <b>MAF 호스티드 에이전트</b>. 모니터링은 여전히 코드 없이 되지만 <b>세션별 cold start</b>와 컨테이너 시간 과금을 설계에 넣어야 합니다.</li><li>두 에이전트 모두 <b>프롬프트 · 응답 본문이 트레이스에 기록</b>되므로 접근 제어(부록 C)를 먼저 정하세요.</li></ul></div></div><div class="step" id="e2"><h3><span class="badge">E2</span><span>정리 — 프로젝트 · 모델 · 에이전트 · 모니터링 리소스 전부 삭제</span></h3><p class="meta">소요 약 3분</p><p><code>azd down</code> 이 azd 가 만든 리소스 그룹을 통째로 지웁니다. <code>--purge</code> 를 붙이면 삭제된 Foundry 리소스도 영구 삭제해 같은 이름을 다시 쓸 수 있습니다. (Network Watcher 같은 리소스 그룹 밖 리소스는 만들지 않으므로 따로 지울 것이 없습니다.)</p><div class="codewrap"><div class="cap"><span>전체 삭제</span><span></span></div><button class="copy" type="button">복사</button><pre class="code" data-run="E2" data-skip="1"><code>azd down --force --purge
+rm -f foundry.env calls.jsonl last_call.ts alerts.txt</code></pre></div></div></section><section id="x"><h2>부록<small>검증 기록 · 문제 해결 · 운영 적용 · 상세</small></h2><div class="step" id="x1"><h3><span class="badge">부록 A</span><span>실제 환경에서 확인한 사실</span></h3><p class="meta">2026-10-24 · Korea Central · gpt-5.4-mini · azd 1.37.1 · azure.ai.agents 1.0.0-beta.22 · azure-ai-projects 2.9 · Azure CLI 2.86</p><table><thead><tr><th>항목</th><th class="res">결과</th><th>실측 내용</th></tr></thead><tbody><tr><td><b>azd up 한 번</b></td><td class="ok">✔</td><td>프로젝트 · 모델 · Application Insights 연결 · 에이전트 2개가 3분 42초(프로비저닝+훅 117초, 배포 101초). 새 환경 3번 중 1번은 첫 시도가 <code>FailedIdentityOperation Conflict</code> 로 실패, 재실행으로 성공</td></tr><tr><td><b>azd 프로비저너가 만드는 것</b></td><td class="ok">✔</td><td><code>infra.provider: microsoft.foundry</code> 는 Foundry 리소스 · 프로젝트 · 모델 배포만 만들고 <b>Application Insights 는 만들지 않습니다</b> → postprovision 훅(<code>connect-appinsights.sh</code>)이 연결</td></tr><tr><td><b>서버 쪽 트레이스 자동 수집</b></td><td class="ok">✔</td><td>연결만으로 프롬프트 에이전트(<code>invoke_agent</code> · <code>chat</code> 스팬)와 호스티드 에이전트(플랫폼 요청 스팬 + 컨테이너 스팬 · 로그)가 코드 변경 없이 수집됨</td></tr><tr><td><b>traceparent → operation_Id</b></td><td class="ok">✔</td><td>클라이언트가 보낸 trace_id 가 프롬프트 · 호스티드 모두에서 서버 쪽 모든 기록의 <code>operation_Id</code> 와 일치 (컨테이너 로그 포함)</td></tr><tr><td><b>응답 ID 대조</b></td><td class="ok">✔</td><td>프롬프트: 클라이언트 <code>resp_…</code> = 스팬의 <code>gen_ai.response.id</code>, 호스티드: <code>caresp_…</code> = 요청 스팬의 <code>azure.ai.agentserver.response_id</code></td></tr><tr><td><b>호스티드 cold start 분해</b></td><td class="ok">✔</td><td>요청 스팬에 <code>hosted_agent.latency.*</code> 속성(start_type · platform_preprocessing · infra_setup · container_readiness · container_response · response_begin). 새 대화마다 cold, 같은 대화 재사용 시 warm</td></tr><tr><td><b>프롬프트 에이전트의 런타임 오버헤드</b></td><td class="ok">✔</td><td>실행 시간 − 모델 호출 시간은 보통 수백 ms 이하. 28건 중 1건은 약 10초(모델 호출 1초 미만 그대로)로 길었음 — 재현 조건은 확인하지 못함</td></tr><tr><td><b>실패 가시성</b></td><td class="ok">✔</td><td>호스티드의 실행 중 실패: <code>dependencies</code>(success=false) · <code>exceptions</code> 에 남고 <code>requests</code> 는 success=true. 시작 전에 거절된 호출(없는 모델 배포로 만든 프롬프트 에이전트)은 어떤 테이블에도 남지 않음</td></tr><tr><td><b>프롬프트 · 응답 본문</b></td><td class="ok">✔</td><td><code>gen_ai.input.messages</code> · <code>gen_ai.output.messages</code> · 시스템 지시문이 <code>AppDependencies</code> 의 속성과 <code>AppGenAIContent</code> 테이블에 모두 기록됨(보호 플래그 미등록 상태)</td></tr><tr><td><b>모델 메트릭</b></td><td class="ok">✔</td><td>Foundry 리소스에 진단 설정 없이 메트릭 정의 99개 · 요청 수 · 토큰 · 응답 완료 시간 값 확인. 진단 범주(<code>RequestResponse</code> 등) 목록은 확인했고 적용은 하지 않음</td></tr><tr><td><b>알림</b></td><td class="ok">✔</td><td>느린 실행 · 실패한 실행 알림 2개 발화 확인(알림 목록 API). 수신 메일 도착은 확인하지 못함. 평가 창 5분일 때 지연 도착한 텔레메트리를 놓치는 경우가 있어 15분으로 늘림</td></tr><tr><td><b>삭제</b></td><td class="ok">✔</td><td><code>azd down --force --purge</code> 가 리소스 그룹 삭제 + 소프트 삭제된 Foundry 리소스 purge 를 2분 24초에 마침 (자동 실행 러너는 이 블록을 건너뛰어 별도 환경에서 확인)</td></tr><tr><td><b>Foundry 포털 화면</b></td><td class="part">△</td><td>Traces · Monitor · Operate 화면은 열어 보지 못함 — 같은 Application Insights 데이터까지만 확인</td></tr><tr><td><b>로컬 실행</b></td><td class="part">△</td><td><code>azd ai agent run</code>(로컬 8088 포트)은 시도하지 않음</td></tr></tbody></table></div><div class="step" id="x2"><h3><span class="badge">부록 B</span><span>문제 해결</span></h3><p class="meta">이번 검증에서 실제로 만난 것 위주</p><table><thead><tr><th>증상</th><th>확인 · 해결</th></tr></thead><tbody><tr><td>azd 가 <code>look up tenant for subscription … failed to resolve user</code></td><td>azd 와 az 가 서로 다른 계정으로 로그인됨. <code>azd auth login</code> 을 az 와 같은 계정으로 하거나 <code>azd config set auth.useAzCliAuth true</code></td></tr><tr><td><code>azd up</code> 이 <code>FailedIdentityOperation … Conflict</code> 로 실패</td><td>계정 생성 직후의 일시적 충돌. 같은 <code>azd up</code> 을 다시 실행</td></tr><tr><td>호스티드 배포가 <code>[tool.poetry] section not found</code> 로 실패</td><td>원격 빌더가 <code>pyproject.toml</code> 만 있으면 Poetry 로 가정. <code>requirements.txt</code> 를 쓰거나 <code>uv.lock</code> 을 함께 둠</td></tr><tr><td>호출이 403 · 401</td><td>호출자에게 <b>Foundry User</b>(구 Azure AI User) 역할이 없거나 아직 반영 전(최대 수 분). 프로젝트 범위에 부여했는지 확인</td></tr><tr><td>트레이스가 안 보임</td><td>① 프로젝트에 Application Insights 연결이 있는지(<code>…/projects/&lt;프로젝트&gt;/connections</code> 에 category AppInsights) ② 호출이 에이전트(프롬프트 · 호스티드)를 거쳤는지 — 모델 엔드포인트만 호출하면 트레이스가 없음 ③ 1~3분 대기</td></tr><tr><td>호스티드 에이전트 첫 호출이 8~12초</td><td>새 세션의 cold start. 같은 대화(<code>conversation</code>)를 재사용하거나 idle 시간을 조정. 원인 분해는 C3</td></tr><tr><td>응답이 <code>status: failed</code> · <code>An internal server error occurred.</code></td><td>클라이언트에는 원인이 안 나옴. C4 의 <code>trace_by_id</code> 와 D3 의 <code>failed_runs</code> 로 컨테이너 쪽 예외 확인</td></tr><tr><td><code>azd down</code> 후 같은 이름 재사용 불가</td><td>삭제된 Foundry 리소스가 소프트 삭제 상태. <code>azd down --purge</code> 또는 <code>az cognitiveservices account purge</code></td></tr></tbody></table></div><div class="step" id="x3"><h3><span class="badge">부록 C</span><span>운영에 적용할 때 달라지는 점 · 개인정보</span></h3><p class="meta">이 가이드는 공용 네트워크 · 기본 설정으로 검증했습니다</p><ul><li><b>입출력 본문이 기록됩니다.</b> 프롬프트 · 응답 · 시스템 지시문 · 도구 인자가 트레이스에 남습니다. 문서의 절차: 구독에 <code>protectGenAISensitiveData</code> 기능 플래그를 등록해 본문을 <code>AppGenAIContent</code> 전용 테이블로만 보내고, 그 테이블을 보호 테이블로 설정한 뒤 <b>Privileged Monitoring Data Reader</b> 역할로 읽기 권한을 제한합니다(문서에서 확인 · 이 가이드는 적용하지 않음). 이 실습 구독에서는 플래그가 등록되어 있지 않아 본문이 <code>AppDependencies</code> 속성과 전용 테이블 양쪽에 있었습니다.</li><li><b>보존 · 비용</b>은 연결된 Application Insights / Log Analytics 설정을 따릅니다. 포털의 트레이스 보기는 최대 90일.</li><li><b>역할</b>: 호출 = Foundry User, 포털에서 트레이스 · 모니터 보기 = 연결된 Application Insights 의 Log Analytics Reader(보호 테이블이면 Privileged Monitoring Data Reader 추가). 프로젝트 관리 ID 의 Log Analytics Reader 는 평가 기능용입니다.</li><li><b>네트워크 격리</b>(private endpoint · 관리형 VNet)를 쓰는 프로젝트는 이 가이드의 공용 경로 명령이 그대로 되지 않습니다 — 별도 템플릿(Foundry 문서의 private-network)을 쓰세요. 이번 검증 범위 밖입니다.</li><li><b>베타 · 프리뷰</b>: azd 의 Foundry 확장은 베타(버전 고정 권장), 포털의 Monitor · Alerts 는 프리뷰, 트레이싱 자체는 프롬프트 · 호스티드 에이전트에서 GA(문서 기준).</li><li><b>샘플링 · 비용</b>: 호출량이 많으면 Application Insights 수집 비용이 커집니다. 수집량(GB/일)을 먼저 추정하고 샘플링 · 보존 기간을 정하세요.</li></ul></div><div class="step" id="x4"><h3><span class="badge">부록 D</span><span>직접 만드는 모니터링용 리소스 · 줄 수 상세</span></h3><p class="meta">비교표의 ② · ① 을 뒷받침하는 목록 (줄 수는 빌드할 때 파일에서 직접 셉니다)</p><div class="two"><div><h4>원본 가이드 — 13종</h4><ol><li>Log Analytics 워크스페이스</li><li>Application Insights</li><li>진단 설정(AOAI → 워크스페이스)</li><li>데이터 수집 규칙(DCR)</li><li>DCR 연결</li><li>Azure Monitor Agent 확장</li><li>Network Watcher 확장</li><li>Connection Monitor</li><li>flow log 용 저장소 계정</li><li>VNet flow log</li><li>알림 수신 그룹</li><li>메트릭 알림 규칙</li><li>로그 알림 규칙</li></ol></div><div><h4>이 가이드 — 6종</h4><ol><li>Log Analytics 워크스페이스</li><li>Application Insights</li><li>Foundry 프로젝트 ↔ Application Insights 연결</li><li>역할 할당(호출자 · 프로젝트 관리 ID)</li><li>알림 수신 그룹</li><li>로그 알림 규칙</li></ol></div></div><table class="nw"><thead><tr><th>원본 가이드 스니펫 (빈 줄 · 주석 제외)</th><th>줄</th></tr></thead><tbody><tr><td>R1 AOAI 진단 설정</td><td>8</td></tr><tr><td>R3 앱 호출 로그(helper + 사용 예)</td><td>54</td></tr><tr><td>R4 Application Insights(OTel 코드 · env · systemd)</td><td>12</td></tr><tr><td>R5 VM 에이전트 · DCR</td><td>33</td></tr><tr><td>R6 네트워크 경로 로그</td><td>23</td></tr><tr><td>R7 합성 probe(스크립트 · 서비스 · 타이머)</td><td>84</td></tr><tr><td>R8 알림</td><td>20</td></tr><tr><td><b>합계</b></td><td><b>234</b></td></tr></tbody></table><table class="nw"><thead><tr><th>이 가이드의 모니터링 설정 파일</th><th>줄</th></tr></thead><tbody><tr><td><code>scripts/connect-appinsights.sh</code> (Application Insights 연결 · 역할)</td><td>16</td></tr><tr><td><code>scripts/alerts.sh</code> (알림 2개)</td><td>19</td></tr><tr><td><b>합계</b></td><td><b>35</b></td></tr></tbody></table><p class="foot-note">모니터링이 아닌 파일: 에이전트 코드 <code>main.py</code> 16줄(텔레메트리 코드 0줄), 클라이언트 <code>invoke_agents.py</code> 39줄(선택), 에이전트 · 모델 정의 <code>azure.yaml</code> 55줄.</p></div></section></main>
+</div>
+<footer class="foot">이 문서의 명령 · 코드 · 쿼리는 저장소의 <code>foundry/</code> 폴더 파일과 같은 내용이며, 2026-10-24 실제 Azure 구독의 새 리소스 그룹에서 실행해 검증했습니다(부록 A). 수치는 한 환경에서 잰 값이니 운영 계획에는 본인 환경에서 다시 측정하세요.</footer>
+<script>
+(function () {
+  function fallbackCopy(text) {
+    var ta = document.createElement("textarea");
+    ta.value = text; ta.setAttribute("readonly", ""); ta.style.position = "fixed"; ta.style.opacity = "0";
+    document.body.appendChild(ta); ta.select();
+    var ok = false; try { ok = document.execCommand("copy"); } catch (e) {}
+    document.body.removeChild(ta); return ok;
+  }
+  document.querySelectorAll("button.copy").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      var code = btn.parentElement.querySelector("pre.code code");
+      var text = code ? code.textContent : "";
+      function done(ok) {
+        var old = btn.textContent; btn.textContent = ok ? "복사됨" : "선택 후 Ctrl+C"; if (ok) btn.classList.add("ok");
+        setTimeout(function () { btn.textContent = "복사"; btn.classList.remove("ok"); }, 1400);
+      }
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(function () { done(true); }, function () { done(fallbackCopy(text)); });
+      } else { done(fallbackCopy(text)); }
+    });
+  });
+  var links = Array.prototype.slice.call(document.querySelectorAll("nav.toc a"));
+  var map = {}; links.forEach(function (a) { map[a.getAttribute("href").slice(1)] = a; });
+  var targets = Object.keys(map).map(function (id) { return document.getElementById(id); }).filter(Boolean);
+  if ("IntersectionObserver" in window) {
+    var io = new IntersectionObserver(function (entries) {
+      entries.forEach(function (e) {
+        if (e.isIntersecting) { links.forEach(function (a) { a.classList.remove("on"); }); var a = map[e.target.id]; if (a) a.classList.add("on"); }
+      });
+    }, { rootMargin: "-10% 0px -80% 0px" });
+    targets.forEach(function (t) { io.observe(t); });
+  }
+})();
+</script>
+</body>
+</html>

@@ -56,7 +56,7 @@ python invoke_agents.py report-maf-agent 3 short new | tee -a calls.jsonl       
         "d3",
         "알림 확인 · 실패 원인 보기",
         "D3",
-        "알림은 보통 5~10분 안에 울립니다 (최대 약 20분 대기)",
+        "알림은 장애를 만든 뒤 보통 5~6분 안에 울립니다 (최대 약 20분 대기)",
         "<p>알림이 울릴 때까지 기다린 뒤, 알림이 가리키는 실패를 트레이스에서 찾아봅니다. 실패한 실행은 <b>요청(<code>requests</code>) 스팬이 아니라 "
         "<code>dependencies</code> · <code>exceptions</code> 에 남습니다</b> — 아래 두 번째 쿼리가 그 점을 보여 줍니다.</p>"
         + code(
@@ -75,13 +75,13 @@ cat alerts.txt""",
         + exp("D3b")
         + kqb("request_success_flag", "③ 같은 시간 requests 의 success — 실패한 버전(오타 난 배포 이름)도 success_false 가 0", "D3")
         + exp("D3c")
-        + kqb("container_logs", "④ 호스티드 컨테이너 로그 — 경고 이상", "D3")
+        + kqb("failure_reason", "④ 실패 원인 — 컨테이너 예외 메시지에 진짜 이유(404 DeploymentNotFound)가 있습니다", "D3")
         + exp("D3d")
         + call(
             "info",
             "알림 · 실패 쿼리를 이렇게 짠 이유",
             "<ul><li>실패 알림은 <code>requests</code> 의 <code>success</code> 를 보면 <b>놓칩니다</b>(③). <code>dependencies</code> 의 <code>success == false</code> 를 봅니다.</li>"
-            "<li>실행이 시작되기 전에 거절된 호출(예: 없는 에이전트 · 없는 모델 배포로 만든 프롬프트 에이전트의 404)은 <b>트레이스에 남지 않습니다</b> — 이번 검증에서 오타 난 모델로 만든 프롬프트 에이전트를 2번 불렀을 때 모든 테이블이 비어 있었습니다. "
+            "<li>실행이 시작되기 전에 거절된 호출(예: 없는 에이전트 · 없는 모델 배포로 만든 프롬프트 에이전트의 404)은 <b>트레이스에 남지 않습니다</b> — 별도 실험에서 오타 난 모델로 만든 프롬프트 에이전트를 2번 불렀을 때 모든 테이블이 비어 있었습니다(이 가이드의 실행 블록에는 없음). "
             "이런 실패는 클라이언트 쪽 로그(<code>invoke_agents.py</code> 의 status · error)로 잡아야 합니다.</li></ul>",
         )
     )
@@ -153,17 +153,18 @@ rm -f foundry.env calls.jsonl last_call.ts alerts.txt""",
 
     # ───────────────── 부록
     facts = [
-        ("azd up 한 번", "ok", f"프로젝트 · 모델 · Application Insights 연결 · 에이전트 2개가 {m['up_total_s'] // 60}분 {m['up_total_s'] % 60}초(프로비저닝+훅 {m['provision_s']}초, 배포 {m['deploy_s']}초). 새 환경 2번 중 1번은 첫 시도가 <code>FailedIdentityOperation Conflict</code> 로 실패, 재실행으로 성공"),
+        ("azd up 한 번", "ok", f"프로젝트 · 모델 · Application Insights 연결 · 에이전트 2개가 {m['up_total_s'] // 60}분 {m['up_total_s'] % 60}초(프로비저닝+훅 {m['provision_s']}초, 배포 {m['deploy_s']}초). 새 환경 3번 중 1번은 첫 시도가 <code>FailedIdentityOperation Conflict</code> 로 실패, 재실행으로 성공"),
         ("azd 프로비저너가 만드는 것", "ok", "<code>infra.provider: microsoft.foundry</code> 는 Foundry 리소스 · 프로젝트 · 모델 배포만 만들고 <b>Application Insights 는 만들지 않습니다</b> → postprovision 훅(<code>connect-appinsights.sh</code>)이 연결"),
         ("서버 쪽 트레이스 자동 수집", "ok", "연결만으로 프롬프트 에이전트(<code>invoke_agent</code> · <code>chat</code> 스팬)와 호스티드 에이전트(플랫폼 요청 스팬 + 컨테이너 스팬 · 로그)가 코드 변경 없이 수집됨"),
         ("traceparent → operation_Id", "ok", "클라이언트가 보낸 trace_id 가 프롬프트 · 호스티드 모두에서 서버 쪽 모든 기록의 <code>operation_Id</code> 와 일치 (컨테이너 로그 포함)"),
         ("응답 ID 대조", "ok", "프롬프트: 클라이언트 <code>resp_…</code> = 스팬의 <code>gen_ai.response.id</code>, 호스티드: <code>caresp_…</code> = 요청 스팬의 <code>azure.ai.agentserver.response_id</code>"),
         ("호스티드 cold start 분해", "ok", "요청 스팬에 <code>hosted_agent.latency.*</code> 속성(start_type · platform_preprocessing · infra_setup · container_readiness · container_response · response_begin). 새 대화마다 cold, 같은 대화 재사용 시 warm"),
-        ("프롬프트 에이전트 idle 뒤 첫 호출", "ok", "실행 시간이 모델 호출 시간보다 수 초 길어지는 호출이 쉬었다 온 첫 호출에서 재현됨 (모델 호출은 1초 미만 그대로)"),
+        ("프롬프트 에이전트의 런타임 오버헤드", "ok", f"실행 시간 − 모델 호출 시간은 보통 수백 ms 이하. {m['prompt_runs']}건 중 {m['prompt_outliers']}건은 약 {m['prompt_outlier_s']}초(모델 호출 1초 미만 그대로)로 길었음 — 재현 조건은 확인하지 못함"),
         ("실패 가시성", "ok", "호스티드의 실행 중 실패: <code>dependencies</code>(success=false) · <code>exceptions</code> 에 남고 <code>requests</code> 는 success=true. 시작 전에 거절된 호출(없는 모델 배포로 만든 프롬프트 에이전트)은 어떤 테이블에도 남지 않음"),
         ("프롬프트 · 응답 본문", "ok", "<code>gen_ai.input.messages</code> · <code>gen_ai.output.messages</code> · 시스템 지시문이 <code>AppDependencies</code> 의 속성과 <code>AppGenAIContent</code> 테이블에 모두 기록됨(보호 플래그 미등록 상태)"),
         ("모델 메트릭", "ok", "Foundry 리소스에 진단 설정 없이 메트릭 정의 99개 · 요청 수 · 토큰 · 응답 완료 시간 값 확인. 진단 범주(<code>RequestResponse</code> 등) 목록은 확인했고 적용은 하지 않음"),
         ("알림", "ok", "느린 실행 · 실패한 실행 알림 2개 발화 확인(알림 목록 API). 수신 메일 도착은 확인하지 못함. 평가 창 5분일 때 지연 도착한 텔레메트리를 놓치는 경우가 있어 15분으로 늘림"),
+        ("삭제", "ok", "<code>azd down --force --purge</code> 가 리소스 그룹 삭제 + 소프트 삭제된 Foundry 리소스 purge 를 2분 24초에 마침 (자동 실행 러너는 이 블록을 건너뛰어 별도 환경에서 확인)"),
         ("Foundry 포털 화면", "part", "Traces · Monitor · Operate 화면은 열어 보지 못함 — 같은 Application Insights 데이터까지만 확인"),
         ("로컬 실행", "part", "<code>azd ai agent run</code>(로컬 8088 포트)은 시도하지 않음"),
     ]
@@ -182,7 +183,7 @@ rm -f foundry.env calls.jsonl last_call.ts alerts.txt""",
         ("호스티드 배포가 <code>[tool.poetry] section not found</code> 로 실패", "원격 빌더가 <code>pyproject.toml</code> 만 있으면 Poetry 로 가정. <code>requirements.txt</code> 를 쓰거나 <code>uv.lock</code> 을 함께 둠"),
         ("호출이 403 · 401", "호출자에게 <b>Foundry User</b>(구 Azure AI User) 역할이 없거나 아직 반영 전(최대 수 분). 프로젝트 범위에 부여했는지 확인"),
         ("트레이스가 안 보임", "① 프로젝트에 Application Insights 연결이 있는지(<code>…/projects/&lt;프로젝트&gt;/connections</code> 에 category AppInsights) ② 호출이 에이전트(프롬프트 · 호스티드)를 거쳤는지 — 모델 엔드포인트만 호출하면 트레이스가 없음 ③ 1~3분 대기"),
-        ("호스티드 에이전트 첫 호출이 8~10초", "새 세션의 cold start. 같은 대화(<code>conversation</code>)를 재사용하거나 idle 시간을 조정. 원인 분해는 C3"),
+        ("호스티드 에이전트 첫 호출이 8~12초", "새 세션의 cold start. 같은 대화(<code>conversation</code>)를 재사용하거나 idle 시간을 조정. 원인 분해는 C3"),
         ("응답이 <code>status: failed</code> · <code>An internal server error occurred.</code>", "클라이언트에는 원인이 안 나옴. C4 의 <code>trace_by_id</code> 와 D3 의 <code>failed_runs</code> 로 컨테이너 쪽 예외 확인"),
         ("<code>azd down</code> 후 같은 이름 재사용 불가", "삭제된 Foundry 리소스가 소프트 삭제 상태. <code>azd down --purge</code> 또는 <code>az cognitiveservices account purge</code>"),
     ]

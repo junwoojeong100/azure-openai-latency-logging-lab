@@ -1,0 +1,7 @@
+보고서 첫 문단은 **보고서의 목적, 핵심 결론, 그리고 독자가 바로 알아야 할 배경을 한 번에 제시하는 문단**으로 쓰면 됩니다.
+Trace ID:     660f514f50be9d4f06af75df555114f0
+Response:     caresp_06a2822a7e76237100iMBtb56Ki9DWIonPNzW0M1uvQJpOgGn8
+[report-maf-agent] 보고서 첫 문단은 **주제와 작성 목적을 간결하게 밝히고, 독자가 무엇을 얻을 수 있는지 한눈에 보이도록** 쓰면 됩니다.
+Client elapsed: 9.998s
+Platform latency (cold): response headers 8149 ms
+  preprocess 180 ms | infra 1119 ms | readiness 5744 ms | container 1106 ms

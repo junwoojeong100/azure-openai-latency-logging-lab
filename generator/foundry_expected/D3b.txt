@@ -1,0 +1,15 @@
+timestamp                    itemType    role              name                                               code  trace_id                        
+---------------------------  ----------  ----------------  -------------------------------------------------  ----  --------------------------------
+2026-10-24T01:02:12.313458Z  exception   report-maf-agent  ChatClientException                                      d441534eca95adc8823890eddc016bfc
+2026-10-24T01:02:12.095742Z  exception   report-maf-agent  ChatClientException                                      d441534eca95adc8823890eddc016bfc
+2026-10-24T01:02:12.092291Z  exception   report-maf-agent  agent_framework.exceptions.ChatClientException           d441534eca95adc8823890eddc016bfc
+2026-10-24T01:02:12.08722Z   exception   report-maf-agent  agent_framework.exceptions.ChatClientException           d441534eca95adc8823890eddc016bfc
+2026-10-24T01:02:11.775034Z  dependency  report-maf-agent  chat no-such-deployment                            0     d441534eca95adc8823890eddc016bfc
+2026-10-24T01:02:11.76726Z   dependency  report-maf-agent  invoke_agent <guid>  0     d441534eca95adc8823890eddc016bfc
+2026-10-24T01:02:04.20546Z   exception   report-maf-agent  ChatClientException                                      497531e1263b4b54651c4201e69a7eb0
+2026-10-24T01:02:03.928352Z  exception   report-maf-agent  ChatClientException                                      497531e1263b4b54651c4201e69a7eb0
+2026-10-24T01:02:03.924901Z  exception   report-maf-agent  agent_framework.exceptions.ChatClientException           497531e1263b4b54651c4201e69a7eb0
+2026-10-24T01:02:03.919694Z  exception   report-maf-agent  agent_framework.exceptions.ChatClientException           497531e1263b4b54651c4201e69a7eb0
+2026-10-24T01:02:02.98839Z   dependency  report-maf-agent  chat no-such-deployment                            0     497531e1263b4b54651c4201e69a7eb0
+2026-10-24T01:02:02.980756Z  dependency  report-maf-agent  invoke_agent <guid>  0     497531e1263b4b54651c4201e69a7eb0
+…

@@ -71,14 +71,8 @@ requests
 | summarize requests = count(), success_false = countif(success == false) by version = tostring(customDimensions["agent.version"])
 | order by version asc
 
-//## container_logs | 호스티드 에이전트 컨테이너 로그 (경고 이상)
-traces
-| where timestamp > ago(1h) and cloud_RoleName == "report-maf-agent" and severityLevel >= 2
-| project timestamp, severityLevel, message = substring(message, 0, 200), trace_id = operation_Id
-| order by timestamp desc
-
-//## container_starts | 호스티드 에이전트 컨테이너가 새로 뜬 횟수 (= cold start 횟수)
-traces
-| where timestamp > ago(24h) and cloud_RoleName == "report-maf-agent" and message startswith "AgentServerHost started"
-| summarize starts = count() by bin(timestamp, 1h)
+//## failure_reason | 실패한 실행의 원인 — 컨테이너 예외 메시지에서 뽑은 HTTP 코드 · 오류 코드 (클라이언트에는 "internal server error" 한 줄뿐)
+exceptions
+| where timestamp > ago(1h) and outerMessage has "Error code"
+| summarize timestamp = max(timestamp), http = take_any(extract(@"Error code: (\d+)", 1, outerMessage)), code = take_any(extract(@"code.: .(\w+)", 1, outerMessage)), message = take_any(extract(@"message.: .([^.]+)", 1, outerMessage)) by trace_id = operation_Id
 | order by timestamp desc

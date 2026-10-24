@@ -1,0 +1,7 @@
+itemType    role              rows
+----------  ----------------  ----
+dependency  report-maf-agent  30  
+dependency  responsesapi      36  
+exception   report-maf-agent  5   
+request     agentsv2          10  
+trace       report-maf-agent  383 

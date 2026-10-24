@@ -27,7 +27,7 @@ jobs:
         run: |
           mkdir -p _site
           cp aoai-logging-hands-on-lab.html _site/index.html
-          cp aoai-logging-hands-on-lab.html _site/aoai-logging-hands-on-lab.html
+          cp aoai-logging-hands-on-lab.html foundry-agents-monitoring-lab.html _site/
 
       - uses: actions/upload-pages-artifact@v5
         with:

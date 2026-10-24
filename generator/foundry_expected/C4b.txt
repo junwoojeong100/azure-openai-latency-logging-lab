@@ -1,0 +1,4 @@
+timestamp                     itemType    role          name                                duration_ms  trace_id                        
+----------------------------  ----------  ------------  ----------------------------------  -----------  --------------------------------
+2026-10-24T00:58:00.6532499Z  dependency  responsesapi  chat gpt-5.4-mini-2026-03-17        2241         62bbebec50ccdaceaa8a311c9e84b022
+2026-10-24T00:58:00.6529005Z  dependency  responsesapi  invoke_agent report-prompt-agent:1  2576         62bbebec50ccdaceaa8a311c9e84b022

@@ -1,0 +1,4 @@
+SUCCESS: Your application was deployed to Azure in 59 seconds.
+{"agent": "report-maf-agent", "i": 1, "ms": 10285, "status": "completed", "response_id": "caresp_00c817f0360b876400Et8waJyFMDXLj5f155ZhUJhNITR76KDb", "trace_id": "b1b8b9c27a9cf8667f00ae5472526e30", "input_tokens": 40, "output_tokens": 42, "error": null}
+agent-run-slow	False
+agent-run-failed	False

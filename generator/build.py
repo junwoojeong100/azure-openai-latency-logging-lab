@@ -29,6 +29,7 @@ hero = """<header class="hero">
 <span class="chip"><b>비용</b> 약 $2 이내 (예상)</span>
 <span class="chip"><b>형식</b> 한 페이지 · bash · 복사 버튼</span>
 <a class="chip" href="#x1"><b>검증 기록</b> 보기 →</a>
+<a class="chip" href="foundry-agents-monitoring-lab.html"><b>비교</b> Foundry 에이전트 가이드 →</a>
 </div>
 </header>"""
 

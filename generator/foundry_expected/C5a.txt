@@ -1,0 +1,5 @@
+agent                model                    timestamp             calls  input_tokens  output_tokens  avg_model_ms
+-------------------  -----------------------  --------------------  -----  ------------  -------------  ------------
+report-maf-agent     gpt-5.4-mini-2026-03-17  2026-10-24T01:00:00Z  4      160           180            758         
+report-prompt-agent  gpt-5.4-mini-2026-03-17  2026-10-24T00:00:00Z  8      329           837            1155        
+report-maf-agent     gpt-5.4-mini-2026-03-17  2026-10-24T00:00:00Z  10     1381          906            1006        

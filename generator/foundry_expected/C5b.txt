@@ -1,0 +1,4 @@
+AzureOpenAIRequests      [('00:54', 8, 1), ('00:59', 13, 1)]
+ProcessedPromptTokens    [('00:54', 323, 40), ('00:59', 1507, 116)]
+GeneratedTokens          [('00:54', 618, 77), ('00:59', 1263, 97)]
+AzureOpenAITTLTInMS      [('00:54', 8877, 1110), ('00:59', 16002, 1231)]

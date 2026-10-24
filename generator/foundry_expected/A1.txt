@@ -1,0 +1,4 @@
+2.86.0
+azd version 1.37.1 (commit 6bd1275b6b31104034673946953533eb860dd646) (stable)
+…
+SUCCESS: Extension(s) installed successfully

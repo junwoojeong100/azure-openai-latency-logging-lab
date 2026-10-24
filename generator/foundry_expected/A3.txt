@@ -1,0 +1,16 @@
+Name
+-----------------------------
+cog-<해시>
+cog-<해시>/fdmon-<접미사>
+law-fdmon-<접미사>
+appi-fdmon-<접미사>
+Name:              report-prompt-agent
+Kind:              prompt
+Version:           1
+Status:            active
+Project Endpoint:  https://cog-<해시>.services.ai.azure.com/api/projects/fdmon-<접미사>
+FIELD                            VALUE
+-----                            -----
+ID                               report-maf-agent:1
+Name                             report-maf-agent
+Version                          1

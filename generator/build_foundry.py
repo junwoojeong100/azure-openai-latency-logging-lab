@@ -46,7 +46,7 @@ hero = f"""<header class="hero">
 설정 코드는 <b>{foundry_a.OLD_TOTAL}줄 → {foundry_a.NEW_TOTAL}줄</b>, 에이전트 코드에는 텔레메트리 코드가 <b>0줄</b>, 환경은 <code>azd up</code> 한 번이면 만들어집니다.</p>
 <div class="chips">
 <span class="chip"><b>검증</b> 2026-10-24 · Korea Central · gpt-5.4-mini · azd 1.37.1</span>
-<span class="chip"><b>소요</b> azd up 약 {m['up_total_s'] // 60}분 · 전체 약 40분</span>
+<span class="chip"><b>소요</b> azd up 약 {(m['up_total_s'] + 59) // 60}분 · 전체 약 25분</span>
 <span class="chip"><b>비용</b> 토큰 · 수집 소액 (호스티드는 컨테이너 사용 시간)</span>
 <span class="chip"><b>형식</b> 한 페이지 · bash · 복사 버튼</span>
 <a class="chip" href="#x1"><b>검증 기록</b> 보기 →</a>

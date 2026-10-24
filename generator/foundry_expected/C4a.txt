@@ -1,0 +1,17 @@
+timestamp                     itemType    role              name                                                                    duration_ms  success
+----------------------------  ----------  ----------------  ----------------------------------------------------------------------  -----------  -------
+2026-10-24T00:58:13.152148Z   trace       report-maf-agent  Inbound GET /readiness started (trace-id: ae0d8e2df34d386e1ccc09fe4019                      
+2026-10-24T00:58:13.153029Z   trace       report-maf-agent  192.168.0.1:49538 "GET /readiness 1.1" 200 20 1036μs                                        
+2026-10-24T00:58:13.153292Z   trace       report-maf-agent  Inbound GET /readiness completed with status 200 in 0.8ms (trace-id: a                      
+2026-10-24T00:58:13.2004733Z  request     agentsv2          invoke_agent                                                            3003         True   
+2026-10-24T00:58:13.207291Z   trace       report-maf-agent  Inbound POST /responses started (x-request-id: ae0d8e2df34d386e1ccc09f                      
+2026-10-24T00:58:13.20975Z    trace       report-maf-agent  Creating response caresp_09c8f9aaf22630e300sVvqCHmnDJCXsIvJKxKoaMPbTIW                      
+2026-10-24T00:58:13.210128Z   trace       report-maf-agent  Invoking handler ResponsesAgentServerHost._dispatch_create for respons                      
+2026-10-24T00:58:13.210517Z   trace       report-maf-agent  Resilient task subsystem not enabled for response caresp_09c8f9aaf2263                      
+2026-10-24T00:58:13.313123Z   trace       report-maf-agent  DefaultAzureCredential acquired a token from ManagedIdentityCredential                      
+2026-10-24T00:58:13.489513Z   trace       report-maf-agent  Foundry storage POST ***/storage/responses?api-version=v1 -> 201 (176.                      
+2026-10-24T00:58:13.490911Z   dependency  report-maf-agent  invoke_agent <guid>                       1987         True   
+2026-10-24T00:58:13.498851Z   dependency  report-maf-agent  chat gpt-5.4-mini                                                       1977         True   
+2026-10-24T00:58:14.51589Z    trace       report-maf-agent  DefaultAzureCredential acquired a token from ManagedIdentityCredential                      
+2026-10-24T00:58:14.517451Z   dependency  report-maf-agent  POST /api/projects/fdmon-<접미사>/openai/v1/responses                      576          True   
+…

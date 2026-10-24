@@ -99,10 +99,10 @@ def compare_table():
         ("직접 만드는 모니터링용 Azure 리소스 종류<sup>②</sup>", f"<b>{len(OLD_RESOURCES)}종</b>", f"<b>{len(NEW_RESOURCES)}종</b>", f"<b>{len(NEW_RESOURCES)}종</b>"),
         ("관리하는 서버", "VM 1대 + Azure Monitor Agent + probe", "없음", "없음 (컨테이너는 Foundry 가 운영)"),
         ("설정에 걸린 시간", f"환경 약 15분 + 로그 켜기 약 16분<sup>③</sup>", f"<b>azd up {m['up_total_s'] // 60}분 {m['up_total_s'] % 60}초</b> (환경 + 에이전트 + 연결) + 알림 {m['alerts_s']}초", "같은 azd up 한 번"),
-        ("첫 요청 로그가 조회되기까지", "AOAI 진단 로그 <b>20~26분</b> (설정 후 활성화 지연)", f"약 <b>{m['first_visible_s']}초</b>", f"약 <b>{m['first_visible_s']}초</b>"),
+        ("첫 요청 로그가 조회되기까지", "AOAI 진단 로그 <b>20~26분</b> (설정 후 활성화 지연)", f"약 <b>{m['first_visible_s']}초</b><sup>④</sup>", f"약 <b>{m['first_visible_s']}초</b><sup>④</sup>"),
         ("요청 한 건을 잇는 키", "apim-request-id ↔ CorrelationId (앱이 응답 헤더를 로그에 남겨야 함)", "클라이언트가 보낸 <code>traceparent</code> 의 trace_id = <code>operation_Id</code>", "같음 (컨테이너 로그까지 같은 trace_id)"),
         ("지연을 가르는 기준", "앱이 잰 시간 vs AOAI 서버 시간", "실행 시간 − 모델 호출 시간 (런타임 오버헤드)", "실행 시간 − 모델 호출 시간 + <b>cold start 4단계 분해</b>"),
-        ("새로 생기는 주의점", "—", f"잠시 쉬었다 오면 첫 호출이 느릴 수 있음 (실측 {m['prompt_idle_s']}초)", f"새 세션마다 cold start 약 {m['cold_startup_s']}초 · 컨테이너 시간 과금"),
+        ("새로 생기는 주의점", "—", f"드물게 실행이 모델 호출보다 약 {m['prompt_outlier_s']}초 길어짐 (이번 검증 {m['prompt_runs']}건 중 {m['prompt_outliers']}건 · 원인은 에이전트 런타임)", f"새 세션마다 cold start 약 {m['cold_startup_s']}초 · 컨테이너 시간 과금"),
     ]
     body = "".join(_row(r) for r in rows)
     return (
@@ -132,16 +132,17 @@ def build():
         "<b>새 리소스 그룹에서 실제로 실행해</b> 설정량과 얻는 데이터를 비교합니다.</p>"
         + SVG
         + '<div class="chips"><span class="chip"><b>A</b> azd up · 약 '
-        + f"{m['up_total_s'] // 60}분</span>"
-        '<span class="chip">→</span><span class="chip"><b>B</b> 호출 · 약 2분</span><span class="chip">→</span>'
-        '<span class="chip"><b>C</b> 확인·분석 · 약 10분</span><span class="chip">→</span>'
-        '<span class="chip"><b>D</b> 알림 · 장애 재현 · 약 15분</span><span class="chip">→</span><span class="chip"><b>E</b> 정리 · 약 3분</span></div>'
+        + f"{(m['up_total_s'] + 59) // 60}분</span>"
+        '<span class="chip">→</span><span class="chip"><b>B</b> 호출 · 약 3분</span><span class="chip">→</span>'
+        '<span class="chip"><b>C</b> 확인·분석 · 약 5분</span><span class="chip">→</span>'
+        '<span class="chip"><b>D</b> 알림 · 장애 재현 · 약 10분</span><span class="chip">→</span><span class="chip"><b>E</b> 정리 · 약 3분</span></div>'
         + "<h4>한눈에 비교 — 같은 모니터링, 설정은 얼마나 줄었나</h4>"
         + compare_table()
         + f'<p class="foot-note"><sup>①</sup> 빈 줄 · 주석을 뺀 줄 수. 원본은 <code>snippets/</code> 의 R1 {OLD["R1"]} · R3 {OLD["R3"]} · R4 {OLD["R4"]} · R5 {OLD["R5"]} · R6 {OLD["R6"]} · R7 {OLD["R7"]} · R8 {OLD["R8"]} 줄, '
         f'이 가이드는 <code>connect-appinsights.sh</code> {NEW["connect"]} + <code>alerts.sh</code> {NEW["alerts"]} 줄 (줄 수는 빌드할 때 파일에서 직접 센 값이며, <a href=\"#x4\">부록 D</a>에 상세). '
         f"<sup>②</sup> 목록은 <a href=\"#x4\">부록 D</a>. <sup>③</sup> 원본 가이드의 B1~B7 단계 표기(1+3+3+2+2+5분 등)를 더한 값이며, 위 줄 수는 VM · 네트워크 구간 로그를 포함합니다. "
-        "Foundry 에이전트에는 VM 이 없어서 그 구간은 애초에 필요하지 않습니다.</p>"
+        "Foundry 에이전트에는 VM 이 없어서 그 구간은 애초에 필요하지 않습니다. "
+        "<sup>④</sup> 호출이 끝난 뒤 마지막 호출이 조회되기까지의 시간입니다. 연결을 만든 지 2분 이상 지나서 호출한 값이라, 연결 직후 곧바로 호출했을 때의 활성화 지연은 확인하지 못했습니다.</p>"
         + call(
             "warn",
             "읽을 때 주의 — 이 비교가 말하지 못하는 것",
@@ -214,7 +215,7 @@ azd up""",
         + call(
             "warn",
             "가끔 첫 시도가 실패합니다",
-            "<p>검증 중 새 환경 2번 중 1번은 프로젝트 생성 단계에서 <code>FailedIdentityOperation … Conflict … pending delete operation</code> 으로 약 45초 만에 실패했고, "
+            "<p>검증 중 새 환경 3번 중 1번은 프로젝트 생성 단계에서 <code>FailedIdentityOperation … Conflict … pending delete operation</code> 으로 약 45초 만에 실패했고, "
             "<b>같은 <code>azd up</code> 을 다시 실행하면 성공</b>했습니다 (azd 는 이어서 진행합니다).</p>",
         )
         + details(

@@ -1,0 +1,4 @@
+start_type  runs  preprocess_ms  infra_ms  readiness_ms  run_ms
+----------  ----  -------------  --------  ------------  ------
+cold        5     127            1252      5867          3172  
+warm        5     108            0         0             2259  
