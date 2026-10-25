@@ -26,16 +26,20 @@ for d in ("evidence/blocks", "stages", "azdcfg"):
     os.makedirs(f"{WORK}/{d}", exist_ok=True)
 
 src = open(HTML, encoding="utf-8").read()
-blocks = re.findall(r'<pre class="code" data-run="([^"]+)"( data-skip="1")?><code>(.*?)</code></pre>', src, re.S)
+# 구간별 해설이 붙은 코드는 한 스크립트가 여러 <pre>(data-part=1,2,…)로 나뉘어 있으므로 이어 붙여 한 블록으로 만든다
+blocks = re.findall(r'<pre class="code" data-run="([^"]+)"(?: data-part="(\d+)")?( data-skip="1")?><code>(.*?)</code></pre>', src, re.S)
 stages = {}
 order = []
-for sid, skip, body in blocks:
+for sid, part, skip, body in blocks:
     if skip:
         continue
     code = html.unescape(re.sub(r"<[^>]+>", "", body)).replace("<구독 ID>", SUB).replace("<알림 받을 이메일>", MAIL)
     code = re.sub(r"^(az login|azd auth login)\b.*$", "true", code, flags=re.M)
     if REPO:
         code = code.replace("https://github.com/junwoojeong100/azure-openai-latency-logging-lab.git", REPO + " azure-openai-latency-logging-lab")
+    if part and int(part) > 1:
+        stages[sid][-1] += "\n" + code
+        continue
     if sid not in stages:
         stages[sid] = []
         order.append(sid)

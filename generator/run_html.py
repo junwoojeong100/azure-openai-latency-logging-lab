@@ -6,13 +6,15 @@ HTML = sys.argv[1]; WORK = os.environ.get("WORK", "/tmp/lablog-run"); os.makedir
 SUB = os.environ["SUB"]; MAIL = os.environ["MAIL"]
 only = set(sys.argv[2].split(",")) if len(sys.argv) > 2 else None
 src = open(HTML, encoding="utf-8").read()
-blocks = re.findall(r'<pre class="code" data-run="([^"]+)"( data-skip="1")?><code>(.*?)</code></pre>', src, re.S)
+# 구간별 해설이 붙은 코드는 한 스크립트가 여러 <pre>(data-part=1,2,…)로 나뉘어 있으므로 이어 붙여 한 블록으로 만든다
+blocks = re.findall(r'<pre class="code" data-run="([^"]+)"(?: data-part="(\d+)")?( data-skip="1")?><code>(.*?)</code></pre>', src, re.S)
 stages = []
-for sid, skip, body in blocks:
+for sid, part, skip, body in blocks:
     if skip: continue
     code = html.unescape(re.sub(r"<[^>]+>", "", body)).replace("<구독 ID>", SUB).replace("<알림 받을 이메일>", MAIL)
     code = re.sub(r"^az login .*$", "true", code, flags=re.M)
-    if stages and stages[-1][0] == sid: stages[-1][1].append(code)
+    if part and int(part) > 1: stages[-1][1][-1] += "\n" + code
+    elif stages and stages[-1][0] == sid: stages[-1][1].append(code)
     else: stages.append([sid, [code]])
 log = open(f"{WORK}/progress.log", "a", buffering=1)
 def say(m): log.write(time.strftime("%H:%M:%S ") + m + "\n")

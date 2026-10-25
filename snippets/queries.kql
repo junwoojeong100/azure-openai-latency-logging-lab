@@ -92,6 +92,7 @@ AppTraces
 | sort by TimeGenerated asc
 | extend idle_s = datetime_diff("second",
           TimeGenerated - total_ms * 1ms, prev(TimeGenerated))
+| where isnotnull(idle_s)
 | extend idle = case(idle_s < 60, "a_lt_1m", idle_s < 300, "b_1_5m",
                      "c_gt_5m")
 | summarize calls = count(), p95_ms = percentile(total_ms, 95),
@@ -113,7 +114,7 @@ AppTraces
 AppDependencies
 | where TimeGenerated > ago(1d)
 | where Target has "openai.azure.com"
-| summarize calls = count(), failed = countif(Success == false),
+| summarize calls = sum(ItemCount), failed = sumif(ItemCount, Success == false),
             p95_ms = percentile(DurationMs, 95), max_ms = max(DurationMs)
   by bin(TimeGenerated, 5m), ResultCode
 | order by TimeGenerated asc

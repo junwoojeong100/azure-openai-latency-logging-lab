@@ -16,7 +16,7 @@ hooks:
     run: scripts/connect-appinsights.sh
 
 services:
-  # Foundry 리소스 + 프로젝트 + 모델 배포 (Application Insights · Log Analytics 연결 포함)
+  # Foundry 리소스 + 프로젝트 + 모델 배포 (Application Insights 연결은 위 postprovision 훅이 따로 만든다)
   ai-project:
     host: azure.ai.project
     deployments:

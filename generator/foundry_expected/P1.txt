@@ -1,0 +1,11 @@
+요청별 설정                               에이전트 지정 호출 | 직접 모델 호출
+--------------------------------------------------------------------------------------------------------------
+system 메시지 (input 항목, type=message)  OK (영어로 응답) | OK (영어로 응답)
+max_output_tokens=20                 OK (status=incomplete, out_tok=20) | OK (status=incomplete, out_tok=20)
+stream=True                          OK (첫 토큰 799ms) | OK (첫 토큰 663ms)
+metadata + user                      OK | OK
+temperature=0.2                      ERR 400 invalid_payload(temperature): Not allowed when agent is specified. | OK
+instructions (요청별 지시문)               ERR 400 invalid_payload(instructions): Not allowed when agent is specified. | OK
+tools=[function]                     ERR 400 invalid_payload(tools): Not allowed when agent is specified. | OK (function_call)
+text.format=json_object (JSON 모드)    ERR 400 invalid_payload(text): Not allowed when agent is specified. | OK
+reasoning.effort=low                 ERR 400 invalid_payload(reasoning): Not allowed when agent is specified. | OK
