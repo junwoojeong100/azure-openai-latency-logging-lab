@@ -70,7 +70,7 @@ body {
   font-size: 16px; line-height: 1.75; word-break: keep-all; overflow-wrap: break-word;
 }
 a { color: var(--cp-link); }
-code, pre, kbd { font-family: Consolas, "Courier New", Courier, monospace; }
+code, pre, kbd { font-family: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, "Cascadia Mono", "Liberation Mono", "Noto Sans Mono CJK KR", D2Coding, monospace; }
 :not(pre) > code {
   background: var(--cp-surface-soft); border: 1px solid var(--cp-border); border-radius: 6px;
   padding: 1px 6px; font-size: 0.88em; word-break: break-word; overflow-wrap: anywhere;
@@ -162,6 +162,11 @@ pre.code {
   border-radius: 10px; font-size: 13.5px; line-height: 1.6; tab-size: 2; max-height: 620px;
 }
 pre.code code { white-space: pre; }
+pre.code::-webkit-scrollbar, .expect pre::-webkit-scrollbar { height: 11px; width: 11px; }
+pre.code::-webkit-scrollbar-track, .expect pre::-webkit-scrollbar-track { background: transparent; }
+pre.code::-webkit-scrollbar-thumb, .expect pre::-webkit-scrollbar-thumb { background: var(--cp-text-soft); opacity: 0.6; border-radius: 6px; border: 2px solid transparent; background-clip: content-box; }
+@supports not selector(::-webkit-scrollbar) { pre.code, .expect pre { scrollbar-width: thin; scrollbar-color: var(--cp-text-soft) transparent; } }
+pre.code.more, .expect pre.more { box-shadow: inset -22px 0 14px -14px rgba(0, 0, 0, 0.30); }
 .c { color: var(--cp-text-soft); }
 button.copy {
   position: absolute; top: 24px; right: 8px; font: inherit; font-size: 12px; padding: 2px 10px; border-radius: 8px; cursor: pointer;
@@ -196,10 +201,12 @@ button.copy.ok { color: var(--cp-accent-fg); background: var(--cp-success); bord
 .walk .note ul, .walk .note ol { margin: 5px 0; padding-left: 20px; }
 .walk .note li { margin: 3px 0; }
 body.hide-notes .walk .note { display: none; }
-dl.flags { display: grid; grid-template-columns: minmax(130px, max-content) minmax(0, 1fr); gap: 5px 14px; margin: 6px 0; font-size: 14.5px; }
-dl.flags dt { margin: 0; }
-dl.flags dd { margin: 0; color: var(--cp-text); }
-dl.flags dt code { white-space: normal; }
+dl.flags { display: grid; grid-template-columns: fit-content(34%) minmax(0, 1fr); gap: 6px 16px; margin: 8px 0; font-size: 14.5px; align-items: start; }
+dl.flags dt { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+dl.flags dd { margin: 0; min-width: 0; color: var(--cp-text); }
+dl.flags dt code { white-space: normal; overflow-wrap: anywhere; word-break: break-word; }
+dl.flags dt.long { grid-column: 1 / -1; margin-top: 4px; }
+dl.flags dd.long { grid-column: 1 / -1; margin: 0 0 6px 10px; padding-left: 12px; border-left: 3px solid var(--cp-border-strong); }
 
 /* 접이식 */
 details { margin: 12px 0; border: 1px solid var(--cp-border); border-radius: 10px; background: var(--cp-bg-elevated); }
@@ -306,6 +313,22 @@ footer.foot { max-width: 1280px; margin: 0 auto; padding: 0 28px 40px; color: va
   .walk .note { padding-left: 14px; }
   .walk .segcode .no { top: 8px; }
 }
+@media (max-width: 720px) {
+  table { display: block; overflow: visible; border: 0; background: transparent; margin: 10px 0; }
+  table thead { display: none; }
+  table tbody { display: block; }
+  table tr { display: block; margin: 0 0 12px; border: 1px solid var(--cp-border); border-radius: 10px; background: var(--cp-surface); overflow: hidden; }
+  table tr:last-child td { border-bottom: 1px solid var(--cp-border); }
+  table td { display: block; padding: 7px 12px; white-space: normal; }
+  table tr td:last-child { border-bottom: 0; }
+  table td::before { content: attr(data-label); display: block; font-size: 11.5px; font-weight: 700; color: var(--cp-text-soft); margin-bottom: 2px; letter-spacing: 0.02em; }
+  table td[data-label=""]::before, table td:not([data-label])::before { display: none; }
+  table tr > td:first-child { background: var(--cp-surface-soft); }
+  table.nw td:first-child, table.map td:first-child, table.map td.sc, td.ok, td.part, td.no { white-space: normal; }
+  table.cmp th:first-child, table.cmp td:first-child { width: auto; }
+  .diagram { overflow-x: auto; }
+  .diagram svg { min-width: 620px; }
+}
 @media print {
   nav.toc, button.copy, .tools, .donebox { display: none !important; }
   .layout { display: block; padding: 0 12px; }
@@ -379,6 +402,23 @@ JS = r"""<script>
     });
   });
   refresh();
+
+  function markMore(p) { p.classList.toggle("more", p.scrollWidth > p.clientWidth + 2 && p.scrollLeft + p.clientWidth < p.scrollWidth - 2); }
+  function markAll() { Array.prototype.forEach.call(document.querySelectorAll("pre.code, .expect pre"), markMore); }
+  markAll(); window.addEventListener("resize", markAll); window.addEventListener("load", markAll);
+  document.addEventListener("scroll", function (e) { var t = e.target; if (t && t.matches && t.matches("pre.code, .expect pre")) markMore(t); }, true);
+
+  Array.prototype.forEach.call(document.querySelectorAll("main table"), function (t) {
+    var heads = Array.prototype.map.call(t.querySelectorAll("thead th"), function (th) {
+      var c = th.cloneNode(true);
+      Array.prototype.forEach.call(c.querySelectorAll("br"), function (b) { b.parentNode.replaceChild(document.createTextNode(" "), b); });
+      return c.textContent.replace(/\s+/g, " ").trim();
+    });
+    if (!heads.length) return;
+    Array.prototype.forEach.call(t.querySelectorAll("tbody tr"), function (tr) {
+      Array.prototype.forEach.call(tr.children, function (td, i) { td.setAttribute("data-label", heads[i] && heads[i] !== "#" ? heads[i] : ""); });
+    });
+  });
 
   var btnNotes = document.getElementById("t-notes");
   if (btnNotes) btnNotes.addEventListener("click", function () {

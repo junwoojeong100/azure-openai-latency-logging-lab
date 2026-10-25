@@ -150,7 +150,7 @@ def compare_table():
         ("요청 한 건을 잇는 키", "apim-request-id ↔ CorrelationId (앱이 응답 헤더를 로그에 남겨야 함)", "클라이언트가 보낸 <code>traceparent</code> 의 trace_id = <code>operation_Id</code>", "같음 (컨테이너 로그까지 같은 trace_id)"),
         ("지연을 구분하는 기준", "앱이 잰 시간 vs AOAI 서버 시간", "실행 시간 − 모델 호출 시간 (런타임 오버헤드)", "실행 시간 − 모델 호출 시간 + <b>cold start 단계별 분해</b>(시작 지연 3단계 + 컨테이너 응답)"),
         ("앱 ↔ 서비스 구간의 시간", "앱 호출 로그(R3)에서 AOAI 서버 시간을 빼서 계산", "<b>서버 트레이스에 없음</b> — 앱 최소 기록의 client_ms 에서 서버 시간을 빼서 계산(C7)", "같음"),
-        ("새로 생기는 주의점", "—", f"호출 방식 변경 · 요청별 설정 제한(B3) · 드물게 실행이 모델 호출보다 약 {m['prompt_outlier_s']}초 길어짐 (이번 검증 {m['prompt_runs']}건 중 {m['prompt_outliers']}건 · 원인은 에이전트 런타임)", f"호출 방식 변경 · 요청별 설정 제한(B3) · 새 세션마다 cold start 약 {m['cold_startup_s']}초 · 컨테이너 시간 과금"),
+        ("새로 생기는 주의점", "—", f"호출 방식 변경 · 요청별 설정 제한(B3) · 드물게 실행이 모델 호출보다 약 {m['prompt_outlier_s']}초 길어짐 (이 가이드를 실행하며 만든 프롬프트 에이전트 호출 {m['prompt_runs']}건 중 {m['prompt_outliers']}건 · 원인은 에이전트 런타임)", f"호출 방식 변경 · 요청별 설정 제한(B3) · 새 세션마다 cold start 약 {m['cold_startup_s']}초 · 컨테이너 시간 과금"),
     ]
     body = "".join(_row(r) for r in rows)
     return (

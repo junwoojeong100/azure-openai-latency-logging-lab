@@ -128,7 +128,8 @@ def md(s):
                     items = []
                     for x in xs:
                         term, _, desc = x.partition(" — ")
-                        items.append("<dt>" + inline(term) + "</dt><dd>" + inline(desc) + "</dd>")
+                        cls = ' class="long"' if len(re.sub(r"[`*]", "", term)) > 34 else ""
+                        items.append(f"<dt{cls}>" + inline(term) + f"</dt><dd{cls}>" + inline(desc) + "</dd>")
                     out.append('<dl class="flags">' + "".join(items) + "</dl>")
         state, buf = None, []
 
